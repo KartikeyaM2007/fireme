@@ -984,7 +984,7 @@ function TalkTime({ segments }: { segments?: Segment[] }) {
   );
 }
 
-function Workspace() {
+function Workspace({ onGoHome }: { onGoHome?: () => void }) {
   const { getToken, isLoaded, userId } = useAuth();
   const { user } = useUser();
   const [meetings, setMeetings] = useState<Meeting[]>([]),
@@ -1362,7 +1362,14 @@ function Workspace() {
       <main className={`app-shell ${view === "live" ? "live-mode" : ""} ${mobilePane === "detail" ? "show-detail" : "show-list"}`}>
       <aside className={`sidebar ${mobileNav ? "open" : ""}`}>
         <div className="brand">
-          <span className="brand-mark">✦</span>fireme<span>.ai</span>
+          <button
+            type="button"
+            className="brand-home"
+            aria-label="Go to FireMe homepage"
+            onClick={() => onGoHome?.()}
+          >
+            <span className="brand-mark">✦</span>fireme<span>.ai</span>
+          </button>
           <button
             className="mobile-only sidebar-close"
             aria-label="Close menu"

@@ -8,6 +8,6 @@ export default function Home() {
   return screen === "site" ? (
     <Landing openWorkspace={() => setScreen("workspace")} />
   ) : (
-    <Workspace />
+    <Workspace onGoHome={() => setScreen("site")} />
   );
 }
