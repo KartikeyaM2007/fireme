@@ -75,6 +75,9 @@ const CALENDAR_MOCK = [
   { when: "Tomorrow · 11:00 AM", title: "Customer interview", platform: "Teams" },
 ];
 
+const SPEAKERS = ["Speaker 1", "Speaker 2", "Speaker 3"] as const;
+type SpeakerLabel = (typeof SPEAKERS)[number];
+
 export function LiveHub({
   onSaved,
   onBack,
@@ -196,10 +199,13 @@ function LiveCapture({
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const [elapsed, setElapsed] = useState(0);
+  const [activeSpeaker, setActiveSpeaker] = useState<SpeakerLabel>("Speaker 1");
   const startedAt = useRef<number | null>(null);
   const recRef = useRef<SpeechRec | null>(null);
   const wantListen = useRef(false);
+  const activeSpeakerRef = useRef<SpeakerLabel>(activeSpeaker);
   const linesBox = useRef<HTMLDivElement>(null);
+  activeSpeakerRef.current = activeSpeaker;
 
   useEffect(() => {
     if (!listening) return;
@@ -263,7 +269,7 @@ function LiveCapture({
             ...prev,
             {
               id: `${Date.now()}-${prev.length}`,
-              speaker: "Speaker 1",
+              speaker: activeSpeakerRef.current,
               start_seconds: startSec,
               content: text,
             },
@@ -324,7 +330,7 @@ function LiveCapture({
       ...prev,
       {
         id: `${Date.now()}-m`,
-        speaker: "Speaker 1",
+        speaker: activeSpeaker,
         start_seconds: startSec,
         content: text,
       },
@@ -341,6 +347,9 @@ function LiveCapture({
     setError("");
     try {
       stop();
+      const participants = Array.from(
+        new Set(lines.map((line) => line.speaker)),
+      );
       const created = await (
         await request("/meetings", {
           method: "POST",
@@ -351,7 +360,7 @@ function LiveCapture({
               elapsed,
               lines[lines.length - 1]?.start_seconds || 0,
             ),
-            participants: ["Speaker 1"],
+            participants,
             summary: "",
             topics: ["Live capture"],
           }),
@@ -425,6 +434,28 @@ function LiveCapture({
         </span>
       </div>
 
+      <div className="live-speaker-picker" role="group" aria-label="Active speaker">
+        <span className="muted">Label next lines as</span>
+        <div className="live-speaker-options">
+          {SPEAKERS.map((speaker) => (
+            <button
+              key={speaker}
+              type="button"
+              className={
+                activeSpeaker === speaker
+                  ? "live-speaker-btn active"
+                  : "live-speaker-btn"
+              }
+              onClick={() => setActiveSpeaker(speaker)}
+              disabled={saving}
+              aria-pressed={activeSpeaker === speaker}
+            >
+              {speaker}
+            </button>
+          ))}
+        </div>
+      </div>
+
       {error && (
         <p className="process-error" role="alert">
           {error}
@@ -450,7 +481,7 @@ function LiveCapture({
           <div className="live-line interim">
             <time>…</time>
             <div>
-              <strong>Speaker 1</strong>
+              <strong>{activeSpeaker}</strong>
               <p>{interim}</p>
             </div>
           </div>
