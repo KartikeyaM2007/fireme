@@ -10,7 +10,8 @@ from typing import Optional
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, Response, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, PlainTextResponse
+from fastapi.responses import FileResponse, PlainTextResponse, Response
+from fpdf import FPDF
 from pydantic import BaseModel, Field
 from sqlalchemy import or_, select, text
 from sqlalchemy.orm import Session, selectinload
@@ -90,13 +91,61 @@ def seed():
     db.commit();db.close()
 
 def provision_starter_meetings(db:Session,user_id:str):
-    """Give a new authenticated user assignment starter data without sharing legacy rows."""
-    if db.scalar(select(Meeting.id).where(Meeting.owner_id==user_id).limit(1)): return
-    starter=[("Product roadmap sync",["Maya Chen","Alex Morgan"],[(0,"Maya Chen","Welcome to the roadmap review."),(38,"Alex Morgan","Analytics is the most repeated customer request."),(82,"Maya Chen","We will prioritize analytics for Q3.")]),("Weekly design critique",["Priya Shah","Noah Kim"],[(0,"Priya Shah","I brought two onboarding directions."),(49,"Noah Kim","The checklist gives users confidence."),(111,"Priya Shah","We will simplify the first screen.")])]
-    for title,people,segments in starter:
-        m=Meeting(owner_id=user_id,title=title,occurred_at=datetime.now(),duration_seconds=segments[-1][0],participants=json.dumps(people),summary="Starter meeting. Generate insights to create a fresh brief.",topics="[]",chapters="[]",processing_status="ready")
-        m.segments=[TranscriptSegment(start_seconds=t,speaker=s,content=c) for t,s,c in segments];db.add(m)
+    """Give each user rich assignment starter meetings (private, owned)."""
+    owned=list(db.scalars(select(Meeting).where(Meeting.owner_id==user_id)).all())
+    if owned:
+        thin=all((m.summary or "").startswith("Starter meeting") for m in owned)
+        if thin and len(owned)<=2:
+            for m in owned: db.delete(m)
+            db.commit()
+        else:
+            return
+    samples=[
+        ("Product roadmap sync",2,2820,["Maya Chen","Alex Morgan","Jordan Lee"],
+         "The team aligned on Q3 priorities, making analytics the anchor while retaining activation improvements in the same release.",
+         ["Q3 roadmap","Analytics","Activation"],
+         [{"title":"Priorities","start_seconds":0,"summary":"Lock Q3 product priorities."},{"title":"Customer signal","start_seconds":38,"summary":"Analytics is the strongest repeated request."},{"title":"Decision","start_seconds":141,"summary":"Analytics anchors the release."}],
+         [(0,"Maya Chen","Thanks for joining. Today we need to lock the Q3 product priorities."),(38,"Alex Morgan","The customer interviews point strongly to analytics. It is the most repeated request across segments."),(82,"Jordan Lee","I can have a scoped technical proposal ready by Thursday, including the event pipeline changes."),(141,"Maya Chen","Let us make analytics the anchor and keep activation improvements in the same release."),(208,"Alex Morgan","I will share the interview synthesis and update the roadmap narrative for leadership.")],
+         [("Prepare technical scope for analytics event pipeline","Jordan Lee"),("Share customer interview synthesis","Alex Morgan")]),
+        ("Weekly design critique",5,2100,["Priya Shah","Maya Chen","Noah Kim"],
+         "The group refined the onboarding direction around progressive disclosure and a clearer setup checklist.",
+         ["Onboarding","Design system"],
+         [{"title":"Directions","start_seconds":0,"summary":"Two onboarding directions reviewed."},{"title":"Checklist","start_seconds":49,"summary":"Checklist version builds user confidence."}],
+         [(0,"Priya Shah","I brought two onboarding directions based on the usability sessions."),(49,"Noah Kim","The checklist version gives users much better confidence about what happens next."),(111,"Maya Chen","Can we simplify the first screen and move advanced options later?")],
+         [("Revise onboarding flow","Priya Shah")]),
+    ]
+    for title,days,duration,people,summary,topics,chapters,segments,actions in samples:
+        m=Meeting(owner_id=user_id,title=title,occurred_at=datetime.now()-timedelta(days=days),duration_seconds=duration,participants=json.dumps(people),summary=summary,topics=json.dumps(topics),chapters=json.dumps(chapters),processing_status="ready")
+        m.segments=[TranscriptSegment(start_seconds=t,speaker=s,content=c) for t,s,c in segments]
+        m.actions=[ActionItem(text=t,owner=o) for t,o in actions]
+        db.add(m)
     db.commit()
+
+def export_text(m:Meeting)->str:
+    lines=[f"# {m.title}",f"Date: {m.occurred_at.isoformat()}","", "## Summary",m.summary or "No summary yet.","", "## Action items"]
+    lines += [f"- [{'x' if a.completed else ' '}] {a.text} ({a.owner})" for a in m.actions] or ["- None"]
+    lines += ["", "## Transcript"] + [f"[{s.start_seconds//60:02d}:{s.start_seconds%60:02d}] {s.speaker}: {s.content}" for s in m.segments]
+    return "\n".join(lines)
+
+def export_pdf_bytes(m:Meeting)->bytes:
+    pdf=FPDF();pdf.set_auto_page_break(auto=True,margin=15);pdf.add_page();pdf.set_margins(15,15,15)
+    def write(text:str,size=11,style=""):
+        pdf.set_font("Helvetica",style,size)
+        safe=(text or "").encode("latin-1","replace").decode("latin-1")
+        pdf.multi_cell(w=pdf.epw,h=6,text=safe)
+        pdf.ln(1)
+    write(m.title,16,"B");write(f"Date: {m.occurred_at.isoformat()}",10);pdf.ln(2)
+    write("Summary",13,"B");write(m.summary or "No summary yet.");pdf.ln(2)
+    write("Action items",13,"B")
+    if m.actions:
+        for a in m.actions: write(f"[{'x' if a.completed else ' '}] {a.text} ({a.owner})")
+    else:
+        write("None")
+    pdf.ln(2);write("Transcript",13,"B")
+    for s in m.segments:
+        write(f"[{s.start_seconds//60:02d}:{s.start_seconds%60:02d}] {s.speaker}: {s.content}",10)
+    out=pdf.output()
+    return out if isinstance(out, (bytes, bytearray)) else bytes(out)
 
 @asynccontextmanager
 async def lifespan(app:FastAPI):
@@ -119,7 +168,9 @@ def list_meetings(query:str="",date_from:Optional[datetime]=None,date_to:Optiona
     provision_starter_meetings(db,user_id)
     stmt=select(Meeting).where(Meeting.owner_id==user_id)
     if query:
-        like=f"%{query}%";stmt=stmt.where(or_(Meeting.title.ilike(like),Meeting.participants.ilike(like),Meeting.topics.ilike(like),Meeting.summary.ilike(like)))
+        like=f"%{query}%"
+        transcript_hits=select(TranscriptSegment.meeting_id).where(TranscriptSegment.content.ilike(like))
+        stmt=stmt.where(or_(Meeting.title.ilike(like),Meeting.participants.ilike(like),Meeting.topics.ilike(like),Meeting.summary.ilike(like),Meeting.id.in_(transcript_hits)))
     if date_from: stmt=stmt.where(Meeting.occurred_at>=date_from)
     if date_to: stmt=stmt.where(Meeting.occurred_at<=date_to)
     stmt=stmt.order_by(Meeting.occurred_at.asc() if sort=="oldest" else Meeting.occurred_at.desc())
@@ -222,8 +273,10 @@ def meeting_media(meeting_id:int,user_id:str=Depends(current_user),db:Session=De
     return FileResponse(path,media_type=m.media_type or "application/octet-stream")
 @app.get("/api/meetings/{meeting_id}/export")
 def export(meeting_id:int,format:str="markdown",user_id:str=Depends(current_user),db:Session=Depends(get_db)):
-    m=get_meeting_or_404(meeting_id,user_id,db,True);lines=[f"# {m.title}",f"Date: {m.occurred_at.isoformat()}","", "## Summary",m.summary or "No summary yet.","", "## Action items"]
-    lines += [f"- [{'x' if a.completed else ' '}] {a.text} ({a.owner})" for a in m.actions] or ["- None"]
-    lines += ["", "## Transcript"] + [f"[{s.start_seconds//60:02d}:{s.start_seconds%60:02d}] {s.speaker}: {s.content}" for s in m.segments]
-    text="\n".join(lines);media="text/markdown" if format=="markdown" else "text/plain";suffix="md" if format=="markdown" else "txt"
+    m=get_meeting_or_404(meeting_id,user_id,db,True)
+    fmt=(format or "markdown").lower()
+    if fmt not in {"markdown","txt","pdf"}: raise HTTPException(422,"format must be markdown, txt, or pdf")
+    if fmt=="pdf":
+        return Response(content=bytes(export_pdf_bytes(m)),media_type="application/pdf",headers={"Content-Disposition":f'attachment; filename="meeting-{m.id}.pdf"'})
+    text=export_text(m);media="text/markdown" if fmt=="markdown" else "text/plain";suffix="md" if fmt=="markdown" else "txt"
     return PlainTextResponse(text,media_type=media,headers={"Content-Disposition":f'attachment; filename="meeting-{m.id}.{suffix}"'})

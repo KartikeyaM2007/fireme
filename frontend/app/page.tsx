@@ -13,6 +13,7 @@ import {
   SignUpButton,
   UserButton,
   useAuth,
+  useUser,
 } from "@clerk/nextjs";
 import {
   ArrowRight,
@@ -25,11 +26,11 @@ import {
   FileText,
   LoaderCircle,
   Menu,
-  MoreHorizontal,
   Pencil,
   Play,
   Plus,
   Search,
+  Settings,
   ShieldCheck,
   Sparkles,
   Trash2,
@@ -97,6 +98,7 @@ export default function Home() {
 }
 function Workspace() {
   const { getToken, isLoaded, userId } = useAuth();
+  const { user } = useUser();
   const [meetings, setMeetings] = useState<Meeting[]>([]),
     [selected, setSelected] = useState<Meeting | null>(null),
     [q, setQ] = useState(""),
@@ -107,13 +109,29 @@ function Workspace() {
     [seek, setSeek] = useState(0),
     [find, setFind] = useState(""),
     [modal, setModal] = useState<
-      "create" | "import" | "edit" | "segment" | "paste" | "action" | null
+      | "create"
+      | "import"
+      | "edit"
+      | "segment"
+      | "paste"
+      | "action"
+      | "settings"
+      | "export"
+      | null
     >(null),
     [editing, setEditing] = useState<Segment | null>(null),
     [editingAction, setEditingAction] = useState<Action | null>(null),
     [tokenReady, setTokenReady] = useState(false),
     [busy, setBusy] = useState(false),
     [notice, setNotice] = useState("");
+  const displayName =
+    user?.fullName || user?.primaryEmailAddress?.emailAddress || "You";
+  const initials = displayName
+    .split(" ")
+    .map((p) => p[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
   const flash = (s: string) => {
     setNotice(s);
     setTimeout(() => setNotice(""), 3200);
@@ -243,18 +261,21 @@ function Workspace() {
     await request(`/segments/${s.id}`, { method: "DELETE" });
     await refresh();
   }
-  async function downloadExport() {
+  async function downloadExport(format: "markdown" | "txt" | "pdf") {
     if (!selected) return;
     try {
       const response = await request(
-        `/meetings/${selected.id}/export?format=markdown`,
+        `/meetings/${selected.id}/export?format=${format}`,
       );
       const href = URL.createObjectURL(await response.blob());
       const link = document.createElement("a");
       link.href = href;
-      link.download = `${selected.title}.md`;
+      const ext = format === "markdown" ? "md" : format;
+      link.download = `${selected.title}.${ext}`;
       link.click();
       URL.revokeObjectURL(href);
+      setModal(null);
+      flash(`Exported as ${ext.toUpperCase()}`);
     } catch (e) {
       flash(e instanceof Error ? e.message : "Export failed");
     }
@@ -286,6 +307,11 @@ function Workspace() {
             <FileText size={18} />
             My meetings
           </button>
+          <button className="nav-item" onClick={() => setModal("settings")}>
+            <Settings size={18} />
+            Settings
+            <b>Soon</b>
+          </button>
         </nav>
         <div className="sidebar-bottom">
           <div className="upgrade">
@@ -296,11 +322,12 @@ function Workspace() {
             </div>
           </div>
           <div className="user">
-            <span>AK</span>
+            <span>{initials || "YO"}</span>
             <div>
-              <strong>Alex Kim</strong>
-              <small>Local workspace</small>
+              <strong>{displayName}</strong>
+              <small>Private workspace</small>
             </div>
+            <UserButton />
           </div>
         </div>
       </aside>
@@ -308,7 +335,7 @@ function Workspace() {
         <header className="topbar">
           <div>
             <h1>My meetings</h1>
-            <p>Your searchable meeting library.</p>
+            <p>Search titles, people, topics, and transcript text.</p>
           </div>
           <div className="header-actions">
             <button
@@ -330,7 +357,7 @@ function Workspace() {
             <input
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              placeholder="Search title, people, topics"
+              placeholder="Search by title or keyword"
             />
           </div>
           <input
@@ -395,9 +422,10 @@ function Workspace() {
               </div>
               <div className="detail-actions">
                 <button onClick={() => setModal("edit")}>Edit</button>
-                <button onClick={downloadExport}>
+                <button onClick={() => setModal("export")}>
                   <Download size={15} />
                   Export
+                  <ChevronDown size={14} />
                 </button>
                 <button onClick={destroy} className="danger">
                   <Trash2 size={15} />
@@ -442,6 +470,10 @@ function Workspace() {
                   busy={busy}
                   onGenerate={generate}
                   onTranscribe={transcribe}
+                  onSeek={(seconds) => {
+                    setSeek(seconds);
+                    setTab("transcript");
+                  }}
                   onToggle={toggle}
                   onEdit={(action) => {
                     setEditingAction(action);
@@ -599,6 +631,35 @@ function Workspace() {
           }}
         />
       )}
+      {modal === "settings" && (
+        <Modal title="Settings" close={() => setModal(null)}>
+          <p className="muted coming-soon">
+            Settings is a placeholder for the assignment. Live meeting bots,
+            calendar sync, and integrations are out of scope — Coming soon.
+          </p>
+          <div className="form-actions">
+            <button className="new-btn" onClick={() => setModal(null)}>
+              Close
+            </button>
+          </div>
+        </Modal>
+      )}
+      {modal === "export" && selected && (
+        <Modal title="Export meeting" close={() => setModal(null)}>
+          <p className="muted">Download summary, actions, and transcript.</p>
+          <div className="export-choices">
+            <button className="new-btn" onClick={() => downloadExport("markdown")}>
+              Markdown (.md)
+            </button>
+            <button className="new-btn" onClick={() => downloadExport("txt")}>
+              Plain text (.txt)
+            </button>
+            <button className="new-btn" onClick={() => downloadExport("pdf")}>
+              PDF (.pdf)
+            </button>
+          </div>
+        </Modal>
+      )}
       {notice && (
         <div className="toast">
           <Check size={16} />
@@ -729,23 +790,20 @@ function Landing({ openWorkspace }: { openWorkspace: () => void }) {
         </section>
         <section className="ff-showcase reveal">
           <div className="showcase-top">
-            <span className="live-dot">● Live meeting</span>
+            <span className="live-dot">● Workspace preview</span>
             <span>Product roadmap sync</span>
-            <button>Share</button>
           </div>
           <div className="showcase-body">
             <aside>
               <b>✦ fireme</b>
               <span className="side-active">◈ My meetings</span>
-              <span>◷ Calendar</span>
-              <span>✧ Insights</span>
-              <span>⚙ Settings</span>
+              <span className="side-soon">⚙ Settings · Coming soon</span>
             </aside>
             <article>
               <div className="fake-player">
                 <span className="pulse">✦</span>
-                <b>Recording is ready</b>
-                <small>42:18 · 3 speakers</small>
+                <b>Meeting notepad</b>
+                <small>Summary · Transcript · Ask</small>
                 <div className="fake-wave">
                   <i></i>
                   <i></i>
@@ -797,13 +855,13 @@ function Landing({ openWorkspace }: { openWorkspace: () => void }) {
           </div>
         </section>
         <section className="ff-logo-row reveal">
-          <span>TRUSTED AS A FOCUS LAYER FOR MODERN TEAMS</span>
+          <span>BUILT FOR THE FIREFLIES-STYLE POST-MEETING WORKFLOW</span>
           <div>
-            <b>arc</b>
-            <b>northstar</b>
-            <b>loom</b>
-            <b>vertex</b>
-            <b>mosaic</b>
+            <b>Library</b>
+            <b>Transcript</b>
+            <b>Summary</b>
+            <b>Actions</b>
+            <b>Ask</b>
           </div>
         </section>
         <section id="product" className="ff-section split reveal">
@@ -1095,6 +1153,7 @@ function Summary({
   busy,
   onGenerate,
   onTranscribe,
+  onSeek,
   onToggle,
   onEdit,
   onDelete,
@@ -1104,6 +1163,7 @@ function Summary({
   busy: boolean;
   onGenerate: () => void;
   onTranscribe: () => void;
+  onSeek: (seconds: number) => void;
   onToggle: (a: Action) => void;
   onEdit: (a: Action) => void;
   onDelete: (a: Action) => void;
@@ -1186,7 +1246,11 @@ function Summary({
           <h3>Chapters</h3>
           {meeting.chapters.length ? (
             meeting.chapters.map((c) => (
-              <button key={`${c.title}${c.start_seconds}`} className="chapter">
+              <button
+                key={`${c.title}${c.start_seconds}`}
+                className="chapter"
+                onClick={() => onSeek(c.start_seconds)}
+              >
                 <time>{fmt(c.start_seconds)}</time>
                 <div>
                   <strong>{c.title}</strong>

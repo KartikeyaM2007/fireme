@@ -48,3 +48,22 @@ def test_api_rejects_requests_without_clerk_identity():
         assert health.json()["database"] == "ok"
         response = client.get("/api/meetings")
     assert response.status_code == 401
+
+
+def test_global_search_and_pdf_export():
+    with TestClient(app) as client:
+        set_user("test_search_owner")
+        created = client.post("/api/meetings", json={"title": "Searchable sync", "participants": ["Ava"]})
+        meeting_id = created.json()["id"]
+        client.post(
+            f"/api/meetings/{meeting_id}/paste-transcript",
+            json={"content": "[00:05] Ava: Ship the analytics event pipeline next week."},
+        )
+        hits = client.get("/api/meetings", params={"query": "analytics event pipeline"})
+        assert hits.status_code == 200
+        assert any(m["id"] == meeting_id for m in hits.json())
+        pdf = client.get(f"/api/meetings/{meeting_id}/export", params={"format": "pdf"})
+        assert pdf.status_code == 200
+        assert pdf.headers["content-type"].startswith("application/pdf")
+        assert pdf.content[:4] == b"%PDF"
+        client.delete(f"/api/meetings/{meeting_id}")

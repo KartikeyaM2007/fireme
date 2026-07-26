@@ -11,7 +11,8 @@ FireMe is a full-stack, Fireflies-inspired meeting intelligence app. It pairs an
 - Native audio/video playback, timestamp seeking, transcript search, editable transcript lines, and pasted-transcript import
 - AI summaries, topics, chapters, action extraction, and transcript-grounded Ask FireMe answers
 - Groq-powered transcription with `whisper-large-v3-turbo`
-- Markdown and text exports
+- Markdown, text, and PDF exports
+- Global search across titles, participants, topics, summaries, and transcript text
 - Clerk sign-in/sign-up controls, signed-in profile menu, and a workspace handoff
 
 ## AI providers

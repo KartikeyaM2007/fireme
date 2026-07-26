@@ -9,6 +9,12 @@ const authMocks = vi.hoisted(() => ({
 
 vi.mock("@clerk/nextjs", () => ({
   useAuth: () => ({ isLoaded: true, userId: "user_test", getToken: authMocks.getToken }),
+  useUser: () => ({
+    user: {
+      fullName: "Test User",
+      primaryEmailAddress: { emailAddress: "test@example.com" },
+    },
+  }),
   Show: ({ children }: { children: unknown }) => children,
   SignInButton: ({ children }: { children: unknown }) => children,
   SignUpButton: ({ children }: { children: unknown }) => children,

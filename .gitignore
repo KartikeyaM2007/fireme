@@ -10,6 +10,7 @@ backend/uploads/
 backend/.env
 .env
 .env.local
+.env_upload/
 tmp/
 .pytest_cache/
 coverage/
