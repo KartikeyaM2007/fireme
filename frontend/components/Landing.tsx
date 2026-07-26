@@ -1,104 +1,75 @@
 "use client";
-import {
-  ChangeEvent,
-  FormEvent,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+
+import { useEffect, useState } from "react";
 import {
   Show,
   SignInButton,
   SignUpButton,
   UserButton,
-  useAuth,
-  useUser,
 } from "@clerk/nextjs";
 import {
   ArrowRight,
-  Bookmark,
-  Bot,
   Check,
-  ChevronDown,
-  Clock3,
-  Download,
-  FileAudio,
-  FileText,
-  Highlighter,
-  LoaderCircle,
   Menu,
-  MessageSquare,
-  Moon,
-  Pencil,
-  Play,
-  Plus,
-  Search,
-  Settings,
   ShieldCheck,
   Sparkles,
-  Sun,
-  Trash2,
-  Upload,
-  Users,
   X,
   Zap,
 } from "lucide-react";
-import type { Action, Meeting, Note, Segment } from "@/lib/types";
-import { API, bindTokenGetter, request } from "@/lib/api";
-import { date, fmt, segmentEnd } from "@/lib/format";
+import { Starfield } from "@/components/Starfield";
 
 function AuthControls({ openWorkspace }: { openWorkspace: () => void }) {
   return (
     <>
       <Show when="signed-out">
         <SignInButton>
-          <button className="fm-login">Sign in</button>
+          <button className="fm-login">Login</button>
+        </SignInButton>
+        <SignInButton>
+          <button className="fm-btn-ghost">Request Demo</button>
         </SignInButton>
         <SignUpButton>
           <button className="fm-cta small">
-            Get started <ArrowRight size={15} />
+            Get Started <ArrowRight size={15} />
           </button>
         </SignUpButton>
       </Show>
       <Show when="signed-in">
-        <button className="fm-login" onClick={openWorkspace}>
+        <button className="fm-btn-ghost" onClick={openWorkspace}>
           Open workspace
+        </button>
+        <button className="fm-cta small" onClick={openWorkspace}>
+          Get Started <ArrowRight size={15} />
         </button>
         <UserButton />
       </Show>
     </>
   );
 }
+
 function Landing({ openWorkspace }: { openWorkspace: () => void }) {
   const [active, setActive] = useState(0);
+  const [scrolled, setScrolled] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const demos = ["Overview", "Decisions", "Action items", "Follow-up"];
+
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 24);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
   useEffect(() => {
     const observer = new IntersectionObserver(
       (items) =>
         items.forEach((x) => x.isIntersecting && x.target.classList.add("in")),
-      { threshold: 0.15 },
+      { threshold: 0.12 },
     );
     document.querySelectorAll(".reveal").forEach((x) => observer.observe(x));
     return () => observer.disconnect();
   }, []);
-  const features = [
-    {
-      icon: <FileAudio />,
-      title: "Capture every conversation",
-      text: "Bring recordings and transcripts into one reliable, searchable memory.",
-    },
-    {
-      icon: <Sparkles />,
-      title: "Notes that move work forward",
-      text: "Turn long conversations into clear decisions, chapters, and tasks.",
-    },
-    {
-      icon: <Bot />,
-      title: "Ask your meetings anything",
-      text: "Find the answer and the exact moment it was discussed.",
-    },
-  ];
-  const demos = ["Overview", "Decisions", "Action items", "Follow-up"];
+
   return (
     <div className="fm-site">
       <div className="fm-banner">
@@ -108,133 +79,165 @@ function Landing({ openWorkspace }: { openWorkspace: () => void }) {
           See it in action <ArrowRight size={14} />
         </button>
       </div>
-      <header className="fm-nav">
+
+      <header className={`fm-nav ${scrolled ? "is-scrolled" : "on-hero"}`}>
         <button
           className="fm-logo"
           onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
         >
           <i>✦</i>fireme<span>.ai</span>
         </button>
-        <nav>
+        <nav className="fm-nav-links">
           <a href="#product">Product</a>
-          <a href="#workflows">Workflows</a>
+          <a href="#workflows">Solutions</a>
           <a href="#security">Security</a>
+          <a href="#workflows">Resources</a>
         </nav>
-        <div>
+        <div className="fm-nav-actions">
           <AuthControls openWorkspace={openWorkspace} />
-          <button className="fm-menu">
-            <Menu size={20} />
+          <button
+            className="fm-menu"
+            aria-label="Open menu"
+            onClick={() => setMenuOpen((v) => !v)}
+          >
+            {menuOpen ? <X size={20} /> : <Menu size={20} />}
           </button>
         </div>
+        {menuOpen && (
+          <div className="fm-mobile-menu">
+            <a href="#product" onClick={() => setMenuOpen(false)}>
+              Product
+            </a>
+            <a href="#workflows" onClick={() => setMenuOpen(false)}>
+              Solutions
+            </a>
+            <a href="#security" onClick={() => setMenuOpen(false)}>
+              Security
+            </a>
+            <button
+              className="fm-cta small"
+              onClick={() => {
+                setMenuOpen(false);
+                openWorkspace();
+              }}
+            >
+              Open workspace
+            </button>
+          </div>
+        )}
       </header>
+
       <main>
         <section className="fm-hero">
-          <div className="fm-stars" aria-hidden="true" />
-          <div className="fm-stars fm-stars-drift" aria-hidden="true" />
-          <div className="fm-eyebrow">
-            <span></span> MEETING INTELLIGENCE, REIMAGINED
-          </div>
-          <h1>
-            Your meetings,
-            <br />
-            <em>working for you.</em>
-          </h1>
-          <p>
-            Capture conversations, turn them into clear next steps, and move
-            from discussion to action—without losing a detail.
-          </p>
-          <div className="fm-hero-actions">
-            <Show when="signed-out">
-              <SignUpButton>
-                <button className="fm-cta">
-                  Create your account <ArrowRight size={17} />
+          <Starfield />
+          <div className="fm-hero-copy">
+            <div className="fm-eyebrow fm-anim fm-delay-1">
+              <span></span> MEETING INTELLIGENCE, REIMAGINED
+            </div>
+            <h1 className="fm-anim fm-delay-2">
+              Your meetings,
+              <br />
+              <em>working for you.</em>
+            </h1>
+            <p className="fm-anim fm-delay-3">
+              Capture conversations, turn them into clear next steps, and move
+              from discussion to action—without losing a detail.
+            </p>
+            <div className="fm-hero-actions fm-anim fm-delay-4">
+              <Show when="signed-out">
+                <SignUpButton>
+                  <button className="fm-cta">
+                    Get Started <ArrowRight size={17} />
+                  </button>
+                </SignUpButton>
+                <SignInButton>
+                  <button className="fm-btn-secondary">Request Demo</button>
+                </SignInButton>
+              </Show>
+              <Show when="signed-in">
+                <button className="fm-cta" onClick={openWorkspace}>
+                  Open your workspace <ArrowRight size={17} />
                 </button>
-              </SignUpButton>
-            </Show>
-            <Show when="signed-in">
-              <button className="fm-cta" onClick={openWorkspace}>
-                Open your workspace <ArrowRight size={17} />
-              </button>
-            </Show>
-            <a href="#product">
-              Explore the product <ArrowRight size={16} />
-            </a>
-          </div>
-          <div className="fm-social">
-            <div className="stars">★★★★★</div>
-            <span>Built for teams that value their time</span>
-            <i>•</i>
-            <span>Private by design</span>
+                <button className="fm-btn-secondary" onClick={openWorkspace}>
+                  Explore library
+                </button>
+              </Show>
+            </div>
+            <div className="fm-trust fm-anim fm-delay-5">
+              <div className="fm-trust-pill">
+                <b>★ 4.8 / 5</b>
+                <span>Built for thoughtful teams</span>
+              </div>
+              <div className="fm-trust-pill">
+                <ShieldCheck size={14} />
+                <span>Private by design</span>
+              </div>
+            </div>
           </div>
         </section>
+
         <section className="fm-showcase reveal">
-          <div className="showcase-top">
-            <span className="live-dot">● Workspace preview</span>
-            <span>Product roadmap sync</span>
-          </div>
-          <div className="showcase-body">
-            <aside>
-              <b>✦ fireme</b>
-              <span className="side-active">◈ My meetings</span>
-              <span className="side-soon">⚙ Settings · Coming soon</span>
-            </aside>
-            <article>
-              <div className="fake-player">
-                <span className="pulse">✦</span>
-                <b>Meeting notepad</b>
-                <small>Summary · Transcript · Ask</small>
-                <div className="fake-wave">
-                  <i></i>
-                  <i></i>
-                  <i></i>
-                  <i></i>
-                  <i></i>
-                  <i></i>
-                  <i></i>
-                  <i></i>
-                  <i></i>
-                  <i></i>
-                  <i></i>
-                  <i></i>
-                </div>
-              </div>
-              <div className="fake-tabs">
-                <b>Summary</b>
-                <span>Transcript</span>
-                <span>Ask FireMe</span>
-              </div>
-              <div className="fake-grid">
-                <div>
-                  <small className="purple-label">✦ AI BRIEF</small>
-                  <h3>Q3 priorities are locked.</h3>
-                  <p>
-                    Analytics leads the release, with activation improvements
-                    following in the same milestone.
-                  </p>
-                  <div className="fake-tags">
-                    <span>Roadmap</span>
-                    <span>Analytics</span>
-                    <span>Activation</span>
+          <div className="showcase-float">
+            <div className="showcase-top">
+              <span className="live-dot">● Workspace preview</span>
+              <span>Product roadmap sync</span>
+            </div>
+            <div className="showcase-body">
+              <aside>
+                <b>✦ fireme</b>
+                <span className="side-active">◈ My meetings</span>
+                <span className="side-soon">⚙ Settings · Coming soon</span>
+              </aside>
+              <article>
+                <div className="fake-player">
+                  <span className="pulse">✦</span>
+                  <b>Meeting notepad</b>
+                  <small>Summary · Transcript · Ask</small>
+                  <div className="fake-wave">
+                    {Array.from({ length: 12 }).map((_, i) => (
+                      <i key={i} style={{ animationDelay: `${i * 0.08}s` }} />
+                    ))}
                   </div>
                 </div>
-                <div className="fake-tasks">
-                  <b>Action items</b>
-                  <p>
-                    ✓ Scope the event pipeline <small>Jordan</small>
-                  </p>
-                  <p>
-                    □ Share customer synthesis <small>Alex</small>
-                  </p>
-                  <p>
-                    □ Update the narrative <small>Maya</small>
-                  </p>
+                <div className="fake-tabs">
+                  <b>Summary</b>
+                  <span>Transcript</span>
+                  <span>Ask FireMe</span>
                 </div>
-              </div>
-            </article>
+                <div className="fake-grid">
+                  <div>
+                    <small className="purple-label">✦ AI BRIEF</small>
+                    <h3>Q3 priorities are locked.</h3>
+                    <p>
+                      Analytics leads the release, with activation improvements
+                      following in the same milestone.
+                    </p>
+                    <div className="fake-tags">
+                      <span>Roadmap</span>
+                      <span>Analytics</span>
+                      <span>Activation</span>
+                    </div>
+                  </div>
+                  <div className="fake-tasks">
+                    <b>Action items</b>
+                    <p>
+                      ✓ Scope the event pipeline <small>Jordan</small>
+                    </p>
+                    <p>
+                      □ Share customer synthesis <small>Alex</small>
+                    </p>
+                    <p>
+                      □ Update the narrative <small>Maya</small>
+                    </p>
+                  </div>
+                </div>
+              </article>
+            </div>
           </div>
         </section>
+
         <section className="fm-logo-row reveal">
-          <span>BUILT FOR THE FIREFLIES-STYLE POST-MEETING WORKFLOW</span>
+          <span>BUILT FOR THE POST-MEETING WORKFLOW</span>
           <div>
             <b>Library</b>
             <b>Transcript</b>
@@ -243,6 +246,7 @@ function Landing({ openWorkspace }: { openWorkspace: () => void }) {
             <b>Ask</b>
           </div>
         </section>
+
         <section id="product" className="fm-section split reveal">
           <div className="fm-copy">
             <span className="section-kicker">01 — CAPTURE</span>
@@ -286,6 +290,7 @@ function Landing({ openWorkspace }: { openWorkspace: () => void }) {
             </div>
           </div>
         </section>
+
         <section className="fm-band">
           <div className="reveal">
             <span className="section-kicker">02 — SYNTHESIZE</span>
@@ -315,6 +320,7 @@ function Landing({ openWorkspace }: { openWorkspace: () => void }) {
             </div>
           </div>
         </section>
+
         <section id="workflows" className="fm-section workflows reveal">
           <div className="center-copy">
             <span className="section-kicker">03 — WORK YOUR WAY</span>
@@ -334,8 +340,8 @@ function Landing({ openWorkspace }: { openWorkspace: () => void }) {
               </button>
             ))}
           </div>
-          <div className="workflow-demo">
-            <div className="workflow-main">
+          <div className="workflow-demo" key={active}>
+            <div className="workflow-main fm-panel-in">
               <small>{demos[active].toUpperCase()}</small>
               <h3>
                 {
@@ -361,7 +367,7 @@ function Landing({ openWorkspace }: { openWorkspace: () => void }) {
                 Try it yourself <ArrowRight size={15} />
               </button>
             </div>
-            <div className={`workflow-side side-${active}`}>
+            <div className={`workflow-side side-${active} fm-panel-in`}>
               <span>✦</span>
               <div></div>
               <div></div>
@@ -370,6 +376,7 @@ function Landing({ openWorkspace }: { openWorkspace: () => void }) {
             </div>
           </div>
         </section>
+
         <section id="security" className="fm-section security reveal">
           <div className="security-orb">
             <ShieldCheck size={58} />
@@ -401,6 +408,7 @@ function Landing({ openWorkspace }: { openWorkspace: () => void }) {
             </div>
           </div>
         </section>
+
         <section className="fm-final reveal">
           <span className="section-kicker">START WHERE THE WORK HAPPENS</span>
           <h2>
@@ -415,6 +423,7 @@ function Landing({ openWorkspace }: { openWorkspace: () => void }) {
           </button>
         </section>
       </main>
+
       <footer className="fm-footer">
         <button
           className="fm-logo"
@@ -423,7 +432,7 @@ function Landing({ openWorkspace }: { openWorkspace: () => void }) {
           <i>✦</i>fireme<span>.ai</span>
         </button>
         <span>Meeting intelligence for thoughtful teams.</span>
-        <small>© 2026 FireMe</small>
+        <small>© 2026 FireMe · Kartikeya</small>
       </footer>
     </div>
   );
