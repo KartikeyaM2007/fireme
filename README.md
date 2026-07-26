@@ -1,168 +1,275 @@
-# FireMe — Meeting intelligence workspace
+# FireMe — Fireflies.ai Clone (Scaler SDE Fullstack Assignment)
 
-FireMe is a full-stack, Fireflies-inspired meeting intelligence app. It pairs an original animated product landing page with a persistent meeting workspace for imported recordings and transcripts.
+FireMe is a full-stack meeting intelligence workspace inspired by [Fireflies.ai](https://fireflies.ai). It recreates the core post-meeting workflow: meeting library, interactive transcript with seek sync, AI summary / topics / chapters / action items, CRUD, search/filters, and a Fireflies-style notepad UI.
 
-## What works
+## Live demo & repository
 
-- Scroll-animated product landing page at `/`, with a working **Open workspace** handoff
-- Persistent PostgreSQL (or SQLite) meeting library: create, edit, delete, search, sort, and filter by date or participant
-- Transcript import for `.txt`, `.vtt`, `.srt`, and `.json`
-- Recording import for `.mp3`, `.mp4`, `.m4a`, `.wav`, `.webm`, `.ogg`, `.mpeg`, and `.flac`
-- Native audio/video playback **or** a placeholder seek bar that stays synced with transcript timestamps
-- Transcript search with highlighted matches, editable lines, and pasted-transcript import
-- AI summaries, topics, chapters, action extraction, and transcript-grounded Ask FireMe answers
-- Groq-powered transcription with `whisper-large-v3-turbo`
-- Markdown, text, and PDF exports
-- Global search across titles, participants, topics, summaries, and transcript text
-- Clerk sign-in/sign-up controls, signed-in profile menu, Settings placeholder, and workspace handoff
-- Per-user seeded starter meetings with full transcripts, summaries, topics, chapters, and actions
+| Item | Link |
+| --- | --- |
+| **Hosted app** | https://fireme-chi.vercel.app |
+| **API health** | https://fireme.onrender.com/api/health |
+| **GitHub** | https://github.com/KartikeyaM2007/fireme |
 
-## AI providers
+Sign in with Clerk on the hosted app. Each new user receives private seeded starter meetings (full transcripts, summaries, topics, chapters, and action items).
 
-Groq is the active local provider. It is configured through `backend/.env`, which is ignored by Git.
+## Tech stack
 
-| Capability | Groq default | Notes |
+| Layer | Choice |
+| --- | --- |
+| Frontend | Next.js 15, React 19, TypeScript, Clerk (`@clerk/nextjs`) |
+| Backend | Python 3.12, FastAPI, SQLAlchemy, Pydantic, Uvicorn |
+| Database | SQLite locally by default; PostgreSQL (Supabase) in production via `DATABASE_URL` |
+| Auth | Clerk session JWTs verified on the API with JWKS |
+| AI | Groq (default) or OpenAI-compatible APIs for summary, Ask, and transcription |
+| Export | Markdown, plain text, PDF (`fpdf2`) |
+| Hosting | Frontend on Vercel, backend on Render (Docker), DB on Supabase |
+
+Repo layout matches the assignment: `frontend/` and `backend/`.
+
+## Features (assignment coverage)
+
+### Core (Must Have)
+
+1. **Meetings library / dashboard** — title, date, duration, participants; search; filter by date and participant; sort by recency; profile menu + Settings placeholder
+2. **Meeting / transcript detail** — speaker labels, timestamps, highlighted in-transcript search, media or placeholder seek bar; transcript click ↔ player seek sync
+3. **AI summary & notes** — summary, action items, key topics, chapters (LLM-generated and/or seeded)
+4. **Meeting management (CRUD)** — create (form / import / paste), edit metadata, delete, add/edit/complete actions; all data persists
+5. **Fireflies experience** — library + detail layout, summary/transcript/Ask panels, modals, search/filters, toasts, Settings Coming soon
+
+### Bonus (implemented)
+
+- Global search across titles, people, topics, summaries, and transcript text
+- Export to Markdown / TXT / PDF
+- LLM “Ask FireMe” grounded in the meeting transcript
+- Topics shown on meetings (filterable via search)
+
+### Out of scope / placeholders (per brief)
+
+- Live meeting bot, calendar, Zoom/Meet integrations, team sharing → **Settings → Coming soon**
+
+## Architecture overview
+
+```text
+Browser (Vercel / localhost:3000)
+  Clerk sign-in → session JWT
+        │  REST + Authorization: Bearer <token>
+        ▼
+FastAPI (Render / localhost:8000)
+  ├─ Verify Clerk JWT (issuer + JWKS + authorized party)
+  ├─ Scope every meeting row by owner_id = Clerk sub
+  ├─ SQLite or PostgreSQL (SQLAlchemy)
+  ├─ Local file uploads (UPLOAD_DIR)
+  └─ Groq / OpenAI for insights, Ask, transcription
+```
+
+**Data flow (typical):** Import or paste transcript / upload recording → (optional) transcribe → generate insights → review summary/actions → ask questions → export.
+
+## Database schema
+
+Designed for the assignment’s meeting/transcript/action workflows:
+
+```text
+meetings
+  id                  INTEGER PK
+  owner_id            VARCHAR(128) NULL  -- Clerk user id (sub); indexed
+  title               VARCHAR(200)
+  occurred_at         DATETIME
+  duration_seconds    INTEGER
+  participants        TEXT                 -- JSON string array
+  summary             TEXT
+  topics              TEXT                 -- JSON string array
+  chapters            TEXT                 -- JSON [{title, start_seconds, summary}]
+  media_path          VARCHAR(500) NULL
+  media_type          VARCHAR(100) NULL
+  processing_status   VARCHAR(40)          -- ready | awaiting_transcript | ...
+  created_at          DATETIME
+
+transcript_segments
+  id                  INTEGER PK
+  meeting_id          INTEGER FK → meetings.id  (cascade delete)
+  speaker             VARCHAR(100)
+  start_seconds       INTEGER
+  content             TEXT
+
+action_items
+  id                  INTEGER PK
+  meeting_id          INTEGER FK → meetings.id  (cascade delete)
+  text                TEXT
+  owner               VARCHAR(100)
+  completed           BOOLEAN
+
+meeting_questions
+  id                  INTEGER PK
+  meeting_id          INTEGER FK → meetings.id  (cascade delete)
+  question            TEXT
+  answer              TEXT
+  created_at          DATETIME
+```
+
+**Relationships:** `Meeting` 1—* `TranscriptSegment`, `ActionItem`, `MeetingQuestion`.  
+**Auth isolation:** list/get/update/delete always filter on `meetings.owner_id`.
+
+## API overview
+
+Base URL (local): `http://127.0.0.1:8000`  
+Base URL (prod): `https://fireme.onrender.com`  
+Interactive docs: `/docs`
+
+All meeting routes require `Authorization: Bearer <Clerk session JWT>` except `GET /api/health`.
+
+| Method | Endpoint | Purpose |
 | --- | --- | --- |
-| Summary / Ask FireMe | `llama-3.3-70b-versatile` | Generates structured notes and transcript-grounded answers |
-| Transcription | `whisper-large-v3-turbo` | Returns timestamped segments; speaker diarization is not provided by this model |
-| Alternative | OpenAI | Supported by setting `AI_PROVIDER=openai` and the OpenAI variables |
+| `GET` | `/api/health` | Liveness; DB + AI provider status |
+| `GET` | `/api/meetings` | List/search (`query`), filter (`participant`, `date_from`, `date_to`), sort (`recent`/`oldest`) |
+| `POST` | `/api/meetings` | Create meeting |
+| `GET` | `/api/meetings/{id}` | Meeting detail (segments + actions) |
+| `PUT` | `/api/meetings/{id}` | Edit meeting metadata |
+| `DELETE` | `/api/meetings/{id}` | Delete meeting and children |
+| `POST` | `/api/meetings/import` | Import `.txt/.vtt/.srt/.json` or audio/video |
+| `POST` | `/api/meetings/{id}/paste-transcript` | Paste transcript text |
+| `POST` | `/api/meetings/{id}/segments` | Add transcript line |
+| `PATCH` / `DELETE` | `/api/segments/{id}` | Edit/delete segment |
+| `POST` | `/api/meetings/{id}/actions` | Add action item |
+| `PATCH` / `DELETE` | `/api/actions/{id}` | Edit/complete/delete action |
+| `POST` | `/api/meetings/{id}/generate-insights` | AI summary, topics, chapters, actions |
+| `POST` | `/api/meetings/{id}/transcribe` | Transcribe uploaded media |
+| `POST` | `/api/meetings/{id}/ask` | Ask a question about this meeting |
+| `GET` | `/api/meetings/{id}/media` | Stream recording |
+| `GET` | `/api/meetings/{id}/export?format=` | `markdown` \| `txt` \| `pdf` |
 
-Never put provider keys in frontend environment variables or commit `backend/.env`.
+## Setup instructions
 
-## Local development
+### Prerequisites
 
-Use two terminals.
+- Node.js 20+
+- Python 3.12+
+- Clerk application (publishable + secret keys; issuer + JWKS URL)
+- Groq API key (or OpenAI if you switch provider)
+
+### 1. Backend
 
 ```powershell
-cd E:\FireMe\backend
+cd backend
 Copy-Item .env.example .env
-# Set GROQ_API_KEY in .env (or configure OpenAI instead)
+# Edit .env: GROQ_API_KEY, CLERK_ISSUER, CLERK_JWKS_URL, CLERK_AUTHORIZED_PARTIES
 python -m venv .venv
-.venv\Scripts\Activate.ps1
+.\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 uvicorn main:app --reload --host 127.0.0.1 --port 8000
 ```
 
+Optional: set `DATABASE_URL` to a Postgres URL (Supabase session pooler recommended). Without it, SQLite is used.
+
+### 2. Frontend
+
 ```powershell
-cd E:\FireMe\frontend
+cd frontend
+Copy-Item .env.example .env.local
+# Set NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY, CLERK_SECRET_KEY
+# NEXT_PUBLIC_API_URL=http://127.0.0.1:8000/api
 npm install
 npm run dev -- --hostname localhost --port 3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000). The FastAPI docs are at [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs).
+Open [http://localhost:3000](http://localhost:3000). API docs: [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs).
 
-`CORS_ORIGINS` includes both `localhost:3000` and `127.0.0.1:3000` for local development. Keep the frontend and API hostnames aligned when deploying.
+Use `localhost` (not `127.0.0.1`) for the frontend when using a Clerk development instance.
 
-> Do not run `npm run build` while the Next development server is running: both use `.next`, and a concurrent build can invalidate the dev server's generated CSS. Stop the dev server first, build, then start it again.
+> Do not run `npm run build` while `next dev` is running — both use `.next`.
+
+### 3. Tests
+
+```powershell
+cd backend
+.\.venv\Scripts\Activate.ps1
+pytest -q
+
+cd ..\frontend
+npm test
+```
+
+## Environment variables
+
+### Backend (`backend/.env`)
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `AI_PROVIDER` | `groq` when Groq key exists | `groq` or `openai` |
+| `GROQ_API_KEY` | — | Groq API key |
+| `GROQ_SUMMARY_MODEL` | `llama-3.3-70b-versatile` | Summary / Ask model |
+| `GROQ_TRANSCRIBE_MODEL` | `whisper-large-v3-turbo` | Transcription model |
+| `OPENAI_API_KEY` | — | Required only for OpenAI provider |
+| `OPENAI_SUMMARY_MODEL` | `gpt-5-mini` | OpenAI summary / Ask model |
+| `OPENAI_TRANSCRIBE_MODEL` | `gpt-4o-transcribe-diarize` | OpenAI transcription model |
+| `DATABASE_URL` | SQLite file | SQLAlchemy URL (use Supabase pooler in prod) |
+| `CORS_ORIGINS` | localhost + 127.0.0.1 | Comma-separated browser origins |
+| `CLERK_ISSUER` | — | Clerk issuer URL |
+| `CLERK_JWKS_URL` | — | Clerk JWKS URL |
+| `CLERK_AUTHORIZED_PARTIES` | `http://localhost:3000` | Allowed JWT `azp` values |
+| `SEED_DEMO_DATA` | `true` | Legacy unowned seed; use `false` in production |
+| `UPLOAD_DIR` | `./uploads` | Recording storage path |
+
+### Frontend (`frontend/.env.local`)
+
+| Variable | Purpose |
+| --- | --- |
+| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | Clerk publishable key |
+| `CLERK_SECRET_KEY` | Clerk secret key (server only) |
+| `NEXT_PUBLIC_API_URL` | API base including `/api` |
+
+Never commit `.env` / `.env.local` or put provider secrets in `NEXT_PUBLIC_*` variables.
 
 ## Deployment (Render + Vercel)
 
-Deploy the backend as a Render **Web Service**:
+### Backend (Render Web Service)
 
 - Root Directory: `backend`
 - Runtime: Docker
 - Health Check Path: `/api/health`
-- Environment: `DATABASE_URL`, `GROQ_API_KEY`, `AI_PROVIDER`, `CLERK_ISSUER`, `CLERK_JWKS_URL`, `CLERK_AUTHORIZED_PARTIES`, `CORS_ORIGINS`, and `SEED_DEMO_DATA=false`
-- Mount a persistent disk at `/data` and set `UPLOAD_DIR=/data/uploads` if recordings must survive restarts
+- Env: `DATABASE_URL`, `GROQ_API_KEY`, `AI_PROVIDER`, `CLERK_ISSUER`, `CLERK_JWKS_URL`, `CLERK_AUTHORIZED_PARTIES`, `CORS_ORIGINS`, `SEED_DEMO_DATA=false`
+- Optional disk: mount `/data`, set `UPLOAD_DIR=/data/uploads`
 
-Deploy the frontend on Vercel with Root Directory `frontend`. Set `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`, and `NEXT_PUBLIC_API_URL=https://<render-service>/api`. Add the Vercel origin to both `CORS_ORIGINS` and `CLERK_AUTHORIZED_PARTIES` on Render and to the allowed origins/redirect URLs in Clerk.
-
-## Authentication
-
-Clerk is configured in `frontend/.env.local`, which is ignored by Git. Set `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` and `CLERK_SECRET_KEY` there before starting the frontend. For a Clerk development instance, use `http://localhost:3000` rather than `127.0.0.1:3000`.
-
-Signed-out visitors see **Sign in**, **Get started**, and **Create your account**. Signed-in users see **Open workspace** and the Clerk profile menu. The frontend attaches the Clerk session token to API requests; FastAPI validates it against the Clerk JWKS and scopes every meeting, transcript, action, export, AI request, and media file to its Clerk user id.
-
-Set `CLERK_ISSUER` and `CLERK_JWKS_URL` in `backend/.env`. They are included for the configured development instance; use the values for your own Clerk instance in deployment.
-
-## Environment
-
-| Variable | Default | Purpose |
-| --- | --- | --- |
-| `AI_PROVIDER` | `groq` when `GROQ_API_KEY` exists | `groq` or `openai` |
-| `GROQ_API_KEY` | — | Required for Groq AI operations |
-| `GROQ_SUMMARY_MODEL` | `llama-3.3-70b-versatile` | Groq summary and Q&A model |
-| `GROQ_TRANSCRIBE_MODEL` | `whisper-large-v3-turbo` | Groq transcription model |
-| `OPENAI_API_KEY` | — | Required only when `AI_PROVIDER=openai` |
-| `OPENAI_SUMMARY_MODEL` | `gpt-5-mini` | OpenAI summary and Q&A model |
-| `OPENAI_TRANSCRIBE_MODEL` | `gpt-4o-transcribe-diarize` | OpenAI diarized transcription model |
-| `DATABASE_URL` | local SQLite | SQLAlchemy URL; use the Supabase session pooler for deployment |
-| `CORS_ORIGINS` | local `localhost` + `127.0.0.1` origins | Allowed browser origins |
-| `CLERK_AUTHORIZED_PARTIES` | `http://localhost:3000` | Trusted Clerk token origins |
-| `SEED_DEMO_DATA` | `true` | Set `false` in production to avoid legacy unowned demo rows |
-| `UPLOAD_DIR` | `./uploads` | Local recording storage |
-| `NEXT_PUBLIC_API_URL` | `http://127.0.0.1:8000/api` | Browser-visible backend API URL |
-| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | â€” | Frontend Clerk publishable key in `frontend/.env.local` |
-| `CLERK_SECRET_KEY` | â€” | Server-side Clerk key in `frontend/.env.local`; never commit it |
-
-## Architecture
+Production CORS / Clerk parties for this project:
 
 ```text
-Next.js frontend (Vercel / localhost:3000)
-        │ REST + Clerk Bearer token
-        ▼
-FastAPI API (Render / localhost:8000)
-  ├─ PostgreSQL (Supabase) or SQLite: meetings, segments, actions, questions
-  ├─ Local upload storage (`UPLOAD_DIR`)
-  └─ Groq or OpenAI-compatible provider calls
+CORS_ORIGINS=https://fireme-chi.vercel.app,http://localhost:3000,http://127.0.0.1:3000
+CLERK_AUTHORIZED_PARTIES=https://fireme-chi.vercel.app,http://localhost:3000
 ```
 
-The frontend never receives AI provider secrets.
+### Frontend (Vercel)
 
-## Database schema
+- Root Directory: `frontend`
+- Env: `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`, `NEXT_PUBLIC_API_URL=https://fireme.onrender.com/api`
+- Add the Vercel URL in Clerk allowed origins / redirect URLs
 
-```text
-meetings
-  id, owner_id, title, occurred_at, duration_seconds,
-  participants (JSON text), summary, topics (JSON text), chapters (JSON text),
-  media_path, media_type, processing_status, created_at
+## AI providers
 
-transcript_segments
-  id, meeting_id → meetings.id, speaker, start_seconds, content
-
-action_items
-  id, meeting_id → meetings.id, text, owner, completed
-
-meeting_questions
-  id, meeting_id → meetings.id, question, answer, created_at
-```
-
-Relationships: one meeting has many segments, actions, and Ask FireMe question rows. All product rows are scoped by `meetings.owner_id` (Clerk `sub`).
-
-## API overview
-
-| Method | Endpoint | Purpose |
+| Capability | Groq default | Notes |
 | --- | --- | --- |
-| `GET` | `/api/health` | Health, selected provider, and AI configuration status |
-| `GET` | `/api/meetings` | Search, participant/date filter, sort, and list meetings |
-| `POST` | `/api/meetings` | Create a manual meeting |
-| `GET/PUT/DELETE` | `/api/meetings/{id}` | Read, edit, or delete a meeting |
-| `POST` | `/api/meetings/import` | Import transcript or media files |
-| `POST` | `/api/meetings/{id}/paste-transcript` | Paste transcript text into a meeting |
-| `POST` | `/api/meetings/{id}/transcribe` | Transcribe an uploaded recording |
-| `POST` | `/api/meetings/{id}/generate-insights` | Generate summary, topics, chapters, and actions |
-| `POST` | `/api/meetings/{id}/ask` | Answer a question from the meeting transcript |
-| `POST` | `/api/meetings/{id}/segments` | Add a transcript segment |
-| `PATCH/DELETE` | `/api/segments/{id}` | Update or delete a segment |
-| `POST` | `/api/meetings/{id}/actions` | Add an action item |
-| `PATCH/DELETE` | `/api/actions/{id}` | Update or delete an action item |
-| `GET` | `/api/meetings/{id}/media` | Stream an uploaded recording |
-| `GET` | `/api/meetings/{id}/export` | Download Markdown, text, or PDF export |
+| Summary / Ask FireMe | `llama-3.3-70b-versatile` | Structured notes + transcript-grounded answers |
+| Transcription | `whisper-large-v3-turbo` | Timestamped segments; no speaker diarization |
+| Alternative | OpenAI | Set `AI_PROVIDER=openai` and OpenAI keys/models |
 
 ## Assumptions
 
-- Assignment focus is the post-meeting Fireflies workflow; live meeting bots and calendar/CRM integrations are Settings placeholders.
-- Real speech-to-text is optional in the brief; this repo implements Groq transcription when a recording is uploaded.
-- Seeded starter meetings are provisioned per signed-in user so the hosted demo is immediately usable with `SEED_DEMO_DATA=false`.
-- Audio/video may be missing on starter rows; the placeholder seek bar still supports transcript sync for evaluation.
+- The brief prioritizes the **post-meeting** Fireflies experience, not live bots or CRM integrations (those stay as Coming soon).
+- Real STT is optional in the PDF; this project still implements Groq transcription for uploaded media.
+- Auth is optional in the brief (“assume a logged-in user”); this project uses real Clerk auth and per-user isolation.
+- With `SEED_DEMO_DATA=false`, each signed-in user is provisioned private starter meetings so the hosted demo is immediately usable.
+- Starter meetings may have no recording file; a **placeholder seek bar** still satisfies transcript ↔ player sync for evaluation.
+- `participants`, `topics`, and `chapters` are stored as JSON text for simple schema evolution on SQLite/Postgres without migrations tooling.
+- Free Render instances cold-start; the first API request after idle may take ~30s.
 
-## Verification status
+## Project structure
 
-- Frontend production build / TypeScript checks and Vitest workspace coverage.
-- Backend pytest coverage for auth isolation, global transcript search, and PDF export.
-- Hosted demo: frontend on Vercel, API on Render, Supabase PostgreSQL, Clerk auth.
-- Browser CORS verified for `https://fireme-chi.vercel.app` → `https://fireme.onrender.com`.
+```text
+fireme/
+  frontend/          Next.js app (landing + workspace)
+  backend/           FastAPI app, models, services, tests
+  README.md          This file
+  docker-compose.yml Optional local compose
+```
 
-## Production boundaries
+## License / originality
 
-This is an assignment implementation with Clerk-authenticated, user-scoped API data and SQLite/PostgreSQL support. A public multi-user deployment still needs team/workspace sharing, object storage, background jobs for long media, upload limits/scanning, rate limiting, monitoring, and provider retry handling.
+Built for the Scaler SDE Fullstack Assignment (Fireflies.ai clone). Not affiliated with Fireflies.ai.
