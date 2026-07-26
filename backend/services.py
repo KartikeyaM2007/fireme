@@ -1,6 +1,8 @@
 import json
 import os
 import re
+import subprocess
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -114,24 +116,83 @@ def answer_question(segments: list[Any], question: str) -> str:
     model=os.getenv("GROQ_SUMMARY_MODEL", "llama-3.3-70b-versatile") if provider == "groq" else os.getenv("OPENAI_SUMMARY_MODEL", "gpt-5-mini")
     return chat_completion(client, model, prompt)
 
+GROQ_UPLOAD_LIMIT = 24 * 1024 * 1024
+AUDIO_EXTENSIONS = {".mp3", ".wav", ".m4a", ".flac", ".ogg", ".mpeg"}
+
+
+def _ffmpeg_to_mp3(path: Path) -> Path:
+    """Downsample to 16 kHz mono MP3 so Groq stays under the free-tier size cap."""
+    fd, raw = tempfile.mkstemp(suffix=".mp3")
+    os.close(fd)
+    out = Path(raw)
+    cmd = [
+        "ffmpeg",
+        "-y",
+        "-i",
+        str(path),
+        "-vn",
+        "-ac",
+        "1",
+        "-ar",
+        "16000",
+        "-b:a",
+        "64k",
+        str(out),
+    ]
+    proc = subprocess.run(cmd, capture_output=True, text=True)
+    if proc.returncode != 0 or not out.exists() or out.stat().st_size == 0:
+        out.unlink(missing_ok=True)
+        detail = (proc.stderr or proc.stdout or "ffmpeg failed").strip().splitlines()[-1:]
+        raise RuntimeError(detail[0] if detail else "ffmpeg failed to extract audio")
+    return out
+
+
+def prepare_transcription_file(path: Path) -> tuple[Path, bool]:
+    """Return (file_to_upload, is_temp). Compress video/large files before Groq."""
+    size = path.stat().st_size
+    suffix = path.suffix.lower()
+    if size <= GROQ_UPLOAD_LIMIT and suffix in AUDIO_EXTENSIONS:
+        return path, False
+    return _ffmpeg_to_mp3(path), True
+
+
 def transcribe_media(path: Path) -> list[dict[str, Any]]:
-    provider,client=require_ai()
+    provider, client = require_ai()
     if provider == "groq":
-        model=os.getenv("GROQ_TRANSCRIBE_MODEL", "whisper-large-v3-turbo")
-        args={"model":model,"response_format":"verbose_json"}
+        model = os.getenv("GROQ_TRANSCRIBE_MODEL", "whisper-large-v3-turbo")
+        args = {"model": model, "response_format": "verbose_json"}
     else:
-        model=os.getenv("OPENAI_TRANSCRIBE_MODEL", "gpt-4o-transcribe-diarize")
-        args={"model":model,"response_format":"diarized_json"}
-        if model == "gpt-4o-transcribe-diarize": args["chunking_strategy"]="auto"
-    with path.open("rb") as source:
-        result=client.audio.transcriptions.create(file=source, **args)
-    segments=getattr(result,"segments",None) or (result.get("segments",[]) if isinstance(result,dict) else [])
+        model = os.getenv("OPENAI_TRANSCRIBE_MODEL", "gpt-4o-transcribe-diarize")
+        args = {"model": model, "response_format": "diarized_json"}
+        if model == "gpt-4o-transcribe-diarize":
+            args["chunking_strategy"] = "auto"
+    upload_path, is_temp = prepare_transcription_file(path)
+    try:
+        if upload_path.stat().st_size > GROQ_UPLOAD_LIMIT:
+            raise RuntimeError(
+                f"Prepared audio is still {upload_path.stat().st_size // (1024 * 1024)} MB; "
+                "split the recording or raise the provider size limit"
+            )
+        with upload_path.open("rb") as source:
+            result = client.audio.transcriptions.create(file=source, **args)
+    finally:
+        if is_temp:
+            upload_path.unlink(missing_ok=True)
+    segments = getattr(result, "segments", None) or (result.get("segments", []) if isinstance(result, dict) else [])
     if segments:
-        output=[]
+        output = []
         for row in segments:
-            data=row.model_dump() if hasattr(row,"model_dump") else row
-            content=str(data.get("text",data.get("content",""))).strip()
-            if content: output.append({"speaker":str(data.get("speaker",data.get("speaker_id","Unknown"))),"start_seconds":int(float(data.get("start",data.get("start_seconds",0)))),"content":content})
-        if output:return output
-    text=getattr(result,"text",None) or (result.get("text","") if isinstance(result,dict) else "")
-    return [{"speaker":"Unknown","start_seconds":0,"content":text.strip()}] if text.strip() else []
+            data = row.model_dump() if hasattr(row, "model_dump") else row
+            content = str(data.get("text", data.get("content", ""))).strip()
+            if content:
+                output.append(
+                    {
+                        "speaker": str(data.get("speaker", data.get("speaker_id", "Unknown"))),
+                        "start_seconds": int(float(data.get("start", data.get("start_seconds", 0)))),
+                        "content": content,
+                    }
+                )
+        if output:
+            return output
+    text = getattr(result, "text", None) or (result.get("text", "") if isinstance(result, dict) else "")
+    return [{"speaker": "Unknown", "start_seconds": 0, "content": text.strip()}] if text.strip() else []

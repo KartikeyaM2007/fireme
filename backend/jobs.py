@@ -42,7 +42,8 @@ def _run_transcription(meeting_id: int) -> None:
             meeting.duration_seconds = max(row["start_seconds"] for row in segments)
             meeting.processing_status = "ready"
             db.commit()
-        except Exception:
+        except Exception as exc:
+            print(f"transcription failed for meeting {meeting_id}: {exc}")
             meeting.processing_status = "awaiting_transcription"
             db.commit()
     finally:
