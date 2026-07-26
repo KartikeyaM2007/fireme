@@ -1,0 +1,12 @@
+node_modules/
+.next/
+__pycache__/
+*.pyc
+backend/fireflies.db
+backend/uploads/
+backend/.env
+.env
+.env.local
+tmp/
+.pytest_cache/
+coverage/
