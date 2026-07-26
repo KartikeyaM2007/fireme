@@ -45,7 +45,7 @@ import {
   Zap,
 } from "lucide-react";
 import type { Action, Meeting, Note, Segment } from "@/lib/types";
-import { API, bindTokenGetter, request } from "@/lib/api";
+import { bindTokenGetter, request } from "@/lib/api";
 import { date, fmt, segmentEnd } from "@/lib/format";
 
 function MediaPlayer({
@@ -57,9 +57,8 @@ function MediaPlayer({
   seek: number;
   setSeek: (n: number) => void;
 }) {
-  const apiSrc = meeting.media_url
-      ? `${API.replace(/\/api$/, "")}${meeting.media_url}`
-      : "",
+  // Backend returns "/api/meetings/:id/media"; request() already prefixes NEXT_PUBLIC_API_URL (.../api).
+  const mediaPath = (meeting.media_url || "").replace(/^\/api/, ""),
     media = useRef<HTMLMediaElement>(null),
     [duration, setDuration] = useState(meeting.duration_seconds || 1),
     [src, setSrc] = useState(""),
@@ -69,13 +68,13 @@ function MediaPlayer({
     setPlaying(false);
   }, [meeting.id, meeting.duration_seconds]);
   useEffect(() => {
-    if (!apiSrc) {
+    if (!mediaPath) {
       setSrc("");
       return;
     }
     let objectUrl = "",
       active = true;
-    request(meeting.media_url || "")
+    request(mediaPath)
       .then((response: Response) => response.blob())
       .then((blob: Blob) => {
         objectUrl = URL.createObjectURL(blob);
@@ -86,7 +85,7 @@ function MediaPlayer({
       active = false;
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [apiSrc]);
+  }, [mediaPath]);
   useEffect(() => {
     if (media.current && Math.abs(media.current.currentTime - seek) > 0.8)
       media.current.currentTime = seek;
