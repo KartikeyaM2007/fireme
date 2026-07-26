@@ -59,6 +59,7 @@ def current_user(authorization: str | None = Header(default=None)) -> str:
 
 def add_missing_columns():
     # Lightweight SQLite migration for existing assignment databases.
+    if engine.dialect.name != "sqlite": return
     with engine.begin() as conn:
         existing={row[1] for row in conn.exec_driver_sql("PRAGMA table_info(meetings)")}
         for name, definition in {"owner_id":"VARCHAR(128)","chapters":"TEXT DEFAULT '[]'","media_path":"VARCHAR(500)","media_type":"VARCHAR(100)","processing_status":"VARCHAR(40) DEFAULT 'ready'"}.items():
