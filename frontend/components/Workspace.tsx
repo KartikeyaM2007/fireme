@@ -2009,18 +2009,15 @@ function Workspace({ onGoHome }: { onGoHome?: () => void }) {
       {modal === "settings" && (
         <Modal title="Settings" close={() => setModal(null)}>
           <p className="muted coming-soon">
-            Settings is a placeholder for calendar CRM sync. Zoom / Meet / Teams
-            bots remain Coming soon — use the Live tab for browser mic capture
-            that saves into your normal meeting workspace.
+            Calendar / CRM sync and Zoom / Meet / Teams bots are Coming soon.
+            Use the Live tab for browser mic capture (manual Speaker 1 / 2 / 3).
           </p>
           <p className="muted" style={{ marginTop: 12 }}>
-            Hosting note: the API runs on Render’s free tier. After idle time it
-            may sleep — the workspace shows a wake banner, and the first Ask /
-            Generate / Transcribe call can take 30–60 seconds.
+            DB: SQLite locally; live API uses Postgres with the same schema.
+            Render free tier may take 30–60s to wake after idle.
           </p>
           <p className="muted" style={{ marginTop: 12 }}>
-            DB: SQLite locally (assignment schema); production uses Postgres with
-            the same schema.
+            Full reviewer assumptions are in the project README.
           </p>
           <div className="form-actions">
             <button className="new-btn" onClick={() => setModal(null)}>

@@ -364,16 +364,38 @@ Interactive OpenAPI docs: `/docs`.
 
 ## Assumptions made
 
-1. **Scope:** Focus is the Fireflies **post-meeting** workspace (library + transcript + summary), not production Zoom/Meet/Teams bots. A **Live** hub offers Coming-soon platform cards, a calendar mock, plus **browser microphone capture** (Web Speech API) that saves into the same meeting model.
-2. **STT / speakers:** Seeded transcripts and file upload satisfy the core path. Optional media STT uses Groq Whisper (`verbose_json`) — **not** real speaker diarization; labels are normalized to Speaker N. OpenAI path can use `gpt-4o-transcribe-diarize` when `AI_PROVIDER=openai`. Live capture uses a **manual Speaker 1/2/3 picker**, not auto diarization.
-3. **AI summaries:** May be seeded or LLM-generated from transcript text (both supported). After media transcription finishes, a toast prompts **Generate** for the AI summary.
-4. **Auth:** Brief allows assuming a default logged-in user. This submission uses Clerk so the hosted multi-user demo stays private per account.
-5. **Media player:** Real `<video>` / `<audio>` when a file exists; otherwise a seek bar stays synced with transcript timestamps.
-6. **Placeholders:** Zoom/Meet/Teams bots and calendar auto-join are **Coming soon** in the Live hub; Settings also exposes calendar/CRM / sharing placeholders.
-7. **Database:** The PDF requires SQLite; we designed our own schema (see Database schema) and use SQLite by default locally (`sqlite:///./fireme.db` when `DATABASE_URL` is unset). The live/prod API uses Postgres via `DATABASE_URL` with the same SQLAlchemy schema for Render durability.
-8. **JSON columns:** `participants`, `topics`, and `chapters` are stored as JSON text for portable schema across SQLite and Postgres.
-9. **Cold starts:** Render free-tier dynos sleep when idle. FireMe shows an animated **ColdStartNote** on landing + workspace entry, warms `/api/health`, and uses a skeleton list so a slow wake does not look like an empty product.
-10. **Media streaming:** Playback uses a short-lived `access_token` query parameter because HTML media elements cannot send Authorization headers.
+FireMe is a Fireflies-style meeting notes app.
+
+### What is real
+
+- Meetings library, search/filters, interactive transcript with timestamps
+- Media player that syncs when you click transcript lines
+- AI summary, action items, topics/chapters, Ask FireMe
+- Upload / paste transcript, export (MD/TXT/PDF), dark mode
+- Login with Clerk; each user sees only their meetings
+- Live browser mic capture with manual Speaker 1 / 2 / 3 labels
+- Hosted demo: frontend on Vercel, API on Render
+
+### What is mocked / Coming soon
+
+Allowed by the assignment:
+
+- Zoom / Google Meet / Microsoft Teams auto-join bots
+- Real calendar auto-join and CRM integrations
+- Full team collaboration (Share only copies a meeting link)
+
+### Database
+
+- We designed our own schema for SQLite (as required).
+- On my laptop it uses SQLite by default.
+- The live API uses Postgres with the same schema (more reliable on Render).
+
+### Other notes for reviewers
+
+- Demo includes starter/sample meetings so you can try features immediately.
+- Speech-to-text is optional; Groq Whisper may label speakers as Speaker 1, 2, 3 (not perfect name detection).
+- Render free tier can take 30–60 seconds to wake after idle — please wait until the API is ready.
+- After Transcribe finishes, click **Generate** for the AI summary.
 
 ---
 
