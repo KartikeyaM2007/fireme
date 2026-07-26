@@ -8,57 +8,147 @@ Scaler SDE Fullstack Assignment submission.
 | --- | --- |
 | **GitHub repository** | https://github.com/KartikeyaM2007/fireme |
 | **Hosted demo** | https://fireme-chi.vercel.app |
-| **API** | https://fireme.onrender.com/api/health |
+| **API health** | https://fireme.onrender.com/api/health |
 
 Public repo layout: `frontend/` + `backend/` (as required).
 
 ---
 
-## Screenshots (examples)
+## Quick demo path
 
-### Landing
+1. Open https://fireme-chi.vercel.app and sign in with Clerk.
+2. Click **Open your workspace** (or **Get Started**).
+3. Pick a meeting (e.g. `WIN 20260723 Pro` or a seeded roadmap meeting).
+4. Try **Summary → Transcript (click a timestamp) → Ask FireMe → Export**.
 
-Fireflies-inspired marketing page with signed-in workspace entry.
-
-![FireMe landing page](docs/screenshots/01-landing.png)
-
-### Meetings library + AI summary
-
-Browse meetings (search, filters, sort). Open a meeting for summary, topics, chapters, and action items.
-
-![Workspace library and meeting summary](docs/screenshots/03-meeting-summary.png)
-
-### Interactive transcript
-
-Speaker labels, timestamps, seek sync, in-transcript search, and highlight / comment / soundbite actions.
-
-![Interactive transcript with speakers and timestamps](docs/screenshots/04-transcript.png)
-
-### Ask FireMe
-
-LLM Q&A grounded in the meeting transcript, with a persisted chat thread.
-
-![Ask FireMe chat with cited answer](docs/screenshots/05-ask-fireme.png)
-
-### Dark workspace library
-
-Example of the full Fireflies-style library + detail layout (dark mode).
-
-![Dark mode meetings workspace](docs/screenshots/02-workspace-library.png)
+> Render free-tier may sleep when idle. On first open, wait a few seconds if the library shows `0 meetings` — the UI warms `/api/health` and loads once the API wakes.
 
 ---
 
-## Tech stack used
+## Screenshots (latest examples)
 
-As specified by the assignment, with concrete choices:
+### 1. Landing — interactive starfield + transparent nav
+
+Dark Fireflies-style hero with canvas starfield (mouse parallax), glass header, dual CTAs, and floating workspace preview.
+
+![FireMe landing with interactive starfield](docs/screenshots/01-landing.png)
+
+### 2. Meetings library + video player
+
+Search, filters (participant / topic / date), sort, and a real uploaded recording with seek bar.
+
+![Workspace library with video player](docs/screenshots/02-workspace-library.png)
+
+### 3. AI summary, topics, chapters, actions
+
+Summary panel with regenerate, key topics, chapter outlines that seek the player, and editable action items.
+
+![Meeting summary topics chapters and actions](docs/screenshots/03-meeting-summary.png)
+
+### 4. Interactive transcript
+
+Timestamped lines, in-transcript search, highlight / comment / soundbite actions, click-to-seek sync with the player.
+
+![Interactive transcript with timestamps](docs/screenshots/04-transcript.png)
+
+### 5. Ask FireMe (persisted chat)
+
+LLM Q&A grounded only in this meeting’s transcript, with timestamp citations and a saved thread.
+
+![Ask FireMe chat with cited answer](docs/screenshots/05-ask-fireme.png)
+
+**Example question**
+
+```text
+What is AO and what was the biggest challenge?
+```
+
+**Example answer (abbreviated)**
+
+```text
+AO is an AI-powered video-intelligent system… [00:00].
+The biggest challenge was working with noisy data… [00:48] [00:53].
+```
+
+### 6. Export
+
+Download the meeting as Markdown, plain text, or PDF.
+
+![Export meeting modal MD TXT PDF](docs/screenshots/06-export.png)
+
+---
+
+## Example API calls
+
+Base URL (local): `http://127.0.0.1:8000/api`  
+Base URL (prod): `https://fireme.onrender.com/api`  
+Auth: `Authorization: Bearer <Clerk JWT>` (except health).
+
+### Health
+
+```bash
+curl https://fireme.onrender.com/api/health
+```
+
+Example response:
+
+```json
+{
+  "ok": true,
+  "database": "ok",
+  "ai_configured": true,
+  "ai_provider": "groq",
+  "storage": "postgres"
+}
+```
+
+### List meetings (search + filters)
+
+```bash
+curl -H "Authorization: Bearer $TOKEN" \
+  "https://fireme.onrender.com/api/meetings?query=roadmap&sort=recent"
+```
+
+Useful query params: `query`, `participant`, `topic`, `date_from`, `date_to`, `sort=recent|oldest`.
+
+### Ask about a meeting
+
+```bash
+curl -X POST -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d "{\"question\":\"What decisions were made?\"}" \
+  "https://fireme.onrender.com/api/meetings/21/ask"
+```
+
+### Export Markdown
+
+```bash
+curl -H "Authorization: Bearer $TOKEN" \
+  "https://fireme.onrender.com/api/meetings/21/export?format=markdown" \
+  -o meeting.md
+```
+
+Formats: `markdown` | `txt` | `pdf`.
+
+### Stream media (browser player)
+
+HTML `<video>` / `<audio>` cannot send Bearer headers, so the app appends a short-lived token:
+
+```text
+GET /api/meetings/{id}/media?access_token=<short-lived-jwt>
+```
+
+---
+
+## Tech stack
 
 | Layer | Technology |
 | --- | --- |
-| **Frontend** | Next.js (TypeScript), React, Clerk UI |
+| **Frontend** | Next.js (TypeScript), React, Clerk UI, canvas starfield |
 | **Backend** | Python + FastAPI (Uvicorn) |
-| **Database** | SQLite by default locally; PostgreSQL (Supabase) in production via `DATABASE_URL` |
-| **Auth** | Clerk session JWTs verified on the API (assignment allowed a mock logged-in user; this project uses real auth) |
-| **AI (optional per brief)** | Groq LLM for summaries / Ask / transcription from transcript or media |
+| **Database** | SQLite locally; PostgreSQL (Supabase) in production via `DATABASE_URL` |
+| **Auth** | Clerk session JWTs verified on the API |
+| **AI** | Groq for summaries / Ask / optional media transcription |
 | **Hosting** | Frontend → Vercel · Backend → Render · DB → Supabase |
 
 ---
@@ -71,6 +161,7 @@ As specified by the assignment, with concrete choices:
 - Python 3.12+
 - Clerk keys (for sign-in)
 - Groq API key (optional but used for live AI features)
+- `ffmpeg` on `PATH` for large media compression before Groq STT (local + Docker image)
 
 ### Backend
 
@@ -94,7 +185,7 @@ Copy-Item .env.example .env.local
 # Fill NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY, CLERK_SECRET_KEY
 # NEXT_PUBLIC_API_URL=http://127.0.0.1:8000/api
 npm install
-npm run dev -- --hostname localhost --port 3000
+npx next dev --hostname localhost --port 3000
 ```
 
 App: http://localhost:3000
@@ -123,7 +214,7 @@ Do not commit secrets.
 ```text
 ┌─────────────────────────────────────────┐
 │  Next.js frontend (TypeScript)          │
-│  Landing + Fireflies-style workspace    │
+│  Landing (Starfield) + Workspace        │
 │  Clerk sign-in → Bearer token on APIs   │
 └──────────────────┬──────────────────────┘
                    │ REST /api/*
@@ -132,7 +223,7 @@ Do not commit secrets.
 │  FastAPI backend                        │
 │  JWT verify → owner-scoped queries     │
 │  Meetings / segments / actions / Ask    │
-│  Optional Groq for insights & STT       │
+│  Groq insights + optional STT (ffmpeg) │
 └──────────────────┬──────────────────────┘
                    │
         ┌──────────┴──────────┐
@@ -142,9 +233,7 @@ Do not commit secrets.
                          + media_blobs
 ```
 
-**Core UX flow:** Meetings library → open meeting → transcript + seek bar ↔ timestamps → AI summary / topics / chapters / actions → edit CRUD → optional Ask / export / clips.
-
-Transcription and AI summaries can be seeded or LLM-generated (per assignment). Real STT is out of scope in the brief; this repo still supports Groq transcription when media is uploaded.
+**Core UX flow:** Meetings library → open meeting → video/audio + transcript seek sync → AI summary / topics / chapters / actions → Ask / clips / export.
 
 ---
 
@@ -167,7 +256,8 @@ Custom schema (evaluated per assignment). Designed around meetings, interactive 
 | `chapters` | Text (JSON array) | Outline `{title, start_seconds, summary}` |
 | `media_path` | String, nullable | Uploaded recording path |
 | `media_type` | String, nullable | MIME type |
-| `processing_status` | String | e.g. `ready`, `awaiting_transcription` |
+| `processing_status` | String | e.g. `ready`, `awaiting_transcription`, `transcription_failed` |
+| `processing_error` | Text, nullable | User-visible failure detail |
 | `created_at` | DateTime | |
 
 ### `transcript_segments`
@@ -248,7 +338,7 @@ Auth: `Authorization: Bearer <Clerk JWT>` on all routes except health.
 | `POST` | `/api/meetings/{id}/generate-insights` | AI summary, topics, chapters, actions |
 | `POST` | `/api/meetings/{id}/transcribe` | Transcribe uploaded media (background job) |
 | `POST` | `/api/meetings/{id}/ask` | Ask a question about this meeting (persisted thread) |
-| `GET` | `/api/meetings/{id}/media` | Stream recording |
+| `GET` | `/api/meetings/{id}/media` | Stream recording (`access_token` for players) |
 | `GET` | `/api/meetings/{id}/export` | Export `markdown` / `txt` / `pdf` |
 
 Interactive OpenAPI docs: `/docs`.
@@ -258,36 +348,37 @@ Interactive OpenAPI docs: `/docs`.
 ## Assumptions made
 
 1. **Scope:** Focus is the Fireflies **post-meeting** workspace (library + transcript + summary), not live call bots.
-2. **STT:** Assignment marks real speech-to-text as out of scope / placeholder-OK. Seeded transcripts and file upload (`.txt` / `.vtt` / `.json` / etc.) satisfy the core path; Groq transcription is an optional enhancement when media is present.
+2. **STT:** Assignment marks real speech-to-text as out of scope / placeholder-OK. Seeded transcripts and file upload satisfy the core path; Groq transcription (+ ffmpeg compress under the 25MB limit) is an optional enhancement when media is present.
 3. **AI summaries:** May be seeded or LLM-generated from transcript text (both supported).
 4. **Auth:** Brief allows assuming a default logged-in user. This submission uses Clerk so the hosted multi-user demo stays private per account.
-5. **Media player:** Audio/video may be a placeholder; starter meetings use a seek bar that stays synced with transcript timestamps even without a file.
+5. **Media player:** Real `<video>` / `<audio>` when a file exists; otherwise a seek bar stays synced with transcript timestamps.
 6. **Placeholders:** Live bot, calendar/CRM integrations, and team sharing are exposed as **Settings → Coming soon**.
 7. **Database:** Assignment asks for SQLite schema design; SQLite works locally. Production uses the same schema on PostgreSQL through `DATABASE_URL`.
-8. **JSON columns:** `participants`, `topics`, and `chapters` are stored as JSON text for simple portable schema across SQLite and Postgres.
+8. **JSON columns:** `participants`, `topics`, and `chapters` are stored as JSON text for portable schema across SQLite and Postgres.
 9. **Cold starts:** Render free-tier dynos sleep when idle. The UI warms `/api/health` on workspace open and shows a banner if the API is slow to wake.
-10. **Media streaming:** HTML `<video>`/`<audio>` cannot send Authorization headers, so playback uses a short-lived `access_token` query parameter on the media URL.
+10. **Media streaming:** Playback uses a short-lived `access_token` query parameter because HTML media elements cannot send Authorization headers.
 
 ---
 
 ## Core features implemented (Must Have)
 
-1. **Meetings library / dashboard** — list with title, date, duration, participants; search; filter by date/participant; sort by recency; profile + Settings placeholder  
-2. **Meeting / transcript detail** — speaker labels, timestamps, seek bar, click-to-seek both ways, in-transcript search with highlights  
+1. **Meetings library / dashboard** — list with title, date, duration, participants; search; filter by date/participant/topic; sort by recency; profile + Settings placeholder  
+2. **Meeting / transcript detail** — speaker labels, timestamps, seek bar / video player, click-to-seek both ways, in-transcript search with highlights  
 3. **AI summary & notes** — summary, action items, topics, chapters  
 4. **CRUD** — create (form / upload / paste), edit metadata, delete, add/edit/complete actions; all persist  
-5. **Fireflies experience** — library + detail layout, transcript/summary panels, forms/modals/search/filters, toasts, Settings placeholder  
+5. **Fireflies experience** — interactive landing starfield, library + detail layout, transcript/summary panels, forms/modals/search/filters, toasts, Settings placeholder  
 
 ### Bonus features included
 
 - Export PDF / Markdown / TXT  
 - Global search across meetings (including transcript text)  
 - Topics on meetings **with dedicated topic filter**  
-- LLM “Ask FireMe” chat history about a meeting  
+- LLM “Ask FireMe” **persisted chat history** about a meeting  
 - Comments / highlights / **playable soundbites** on transcript segments  
 - Dark mode toggle  
-- Durable media storage (Postgres `media_blobs`, optional Supabase Storage)  
-- Background transcription jobs (non-blocking HTTP)  
+- Durable media storage (Postgres `media_blobs`)  
+- Background transcription jobs (non-blocking HTTP) + ffmpeg pre-compress  
+- Interactive canvas starfield + transparent scrolled header on the marketing page  
 
 ---
 
@@ -297,7 +388,7 @@ Interactive OpenAPI docs: `/docs`.
 fireme/
   frontend/
     app/                 Next.js entry (page, layout, styles)
-    components/          Landing + Workspace modules
+    components/          Landing, Starfield, Workspace modules
     lib/                 API client, types, format helpers
   backend/
     main.py              FastAPI app + routes
@@ -305,7 +396,7 @@ fireme/
     storage.py           Durable uploads (Postgres / Supabase)
     jobs.py              Background transcription
     models.py / services.py
-  docs/screenshots/      README demo images
+  docs/screenshots/      README demo images (latest)
   README.md
 ```
 
