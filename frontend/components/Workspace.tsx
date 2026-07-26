@@ -52,20 +52,24 @@ function MediaPlayer({
   meeting,
   seek,
   setSeek,
+  clipPlay,
 }: {
   meeting: Meeting;
   seek: number;
   setSeek: (n: number) => void;
+  clipPlay?: { start: number; end: number; token: number } | null;
 }) {
   // Backend returns "/api/meetings/:id/media"; request() already prefixes NEXT_PUBLIC_API_URL (.../api).
   const mediaPath = (meeting.media_url || "").replace(/^\/api/, ""),
     media = useRef<HTMLMediaElement>(null),
+    clipEndRef = useRef<number | null>(null),
     [duration, setDuration] = useState(meeting.duration_seconds || 1),
     [src, setSrc] = useState(""),
     [playing, setPlaying] = useState(false);
   useEffect(() => {
     setDuration(Math.max(meeting.duration_seconds || 1, 1));
     setPlaying(false);
+    clipEndRef.current = null;
   }, [meeting.id, meeting.duration_seconds]);
   useEffect(() => {
     if (!mediaPath) {
@@ -90,21 +94,44 @@ function MediaPlayer({
     if (media.current && Math.abs(media.current.currentTime - seek) > 0.8)
       media.current.currentTime = seek;
   }, [seek]);
+  useEffect(() => {
+    if (!clipPlay) return;
+    clipEndRef.current = clipPlay.end;
+    setSeek(clipPlay.start);
+    setPlaying(true);
+    const el = media.current;
+    if (el) {
+      el.currentTime = clipPlay.start;
+      void el.play().catch(() => undefined);
+    }
+  }, [clipPlay, setSeek]);
   const seekRef = useRef(seek);
   seekRef.current = seek;
   useEffect(() => {
     if (src || !playing) return;
     const id = window.setInterval(() => {
       const next = seekRef.current + 1;
-      if (next >= duration) {
+      const stopAt = clipEndRef.current;
+      if ((stopAt != null && next >= stopAt) || next >= duration) {
         setPlaying(false);
-        setSeek(duration);
+        clipEndRef.current = null;
+        setSeek(stopAt != null ? stopAt : duration);
       } else {
         setSeek(next);
       }
     }, 1000);
     return () => window.clearInterval(id);
   }, [playing, src, duration, setSeek]);
+  function onTimeUpdate(current: number) {
+    const t = Math.floor(current);
+    setSeek(t);
+    const stopAt = clipEndRef.current;
+    if (stopAt != null && current >= stopAt) {
+      clipEndRef.current = null;
+      setPlaying(false);
+      media.current?.pause();
+    }
+  }
   return (
     <div className="player">
       {src ? (
@@ -123,9 +150,9 @@ function MediaPlayer({
                     1,
                 )
               }
-              onTimeUpdate={(e) =>
-                setSeek(Math.floor(e.currentTarget.currentTime))
-              }
+              onPlay={() => setPlaying(true)}
+              onPause={() => setPlaying(false)}
+              onTimeUpdate={(e) => onTimeUpdate(e.currentTarget.currentTime)}
             />
           ) : (
             <audio
@@ -141,9 +168,9 @@ function MediaPlayer({
                     1,
                 )
               }
-              onTimeUpdate={(e) =>
-                setSeek(Math.floor(e.currentTarget.currentTime))
-              }
+              onPlay={() => setPlaying(true)}
+              onPause={() => setPlaying(false)}
+              onTimeUpdate={(e) => onTimeUpdate(e.currentTarget.currentTime)}
             />
           )}
         </>
@@ -174,6 +201,7 @@ function MediaPlayer({
           max={Math.max(duration, 1)}
           value={Math.min(seek, duration || 0)}
           onChange={(e) => {
+            clipEndRef.current = null;
             setSeek(+e.target.value);
             setPlaying(false);
           }}
@@ -345,24 +373,41 @@ function Summary({
 function Ask({
   meeting,
   flash,
+  onAsked,
 }: {
   meeting: Meeting;
   flash: (s: string) => void;
+  onAsked: (row: {
+    id: number;
+    question: string;
+    answer: string;
+    created_at?: string | null;
+  }) => void;
 }) {
   const [question, setQuestion] = useState(""),
-    [answer, setAnswer] = useState(""),
-    [busy, setBusy] = useState(false);
+    [busy, setBusy] = useState(false),
+    threadRef = useRef<HTMLDivElement>(null),
+    history = meeting.questions || [];
+  useEffect(() => {
+    threadRef.current?.scrollTo({
+      top: threadRef.current.scrollHeight,
+      behavior: "smooth",
+    });
+  }, [history.length, busy]);
   async function ask(e: FormEvent) {
     e.preventDefault();
-    if (!question.trim()) return;
+    const q = question.trim();
+    if (!q) return;
     setBusy(true);
     try {
       const r = await request(`/meetings/${meeting.id}/ask`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ question }),
+        body: JSON.stringify({ question: q }),
       });
-      setAnswer((await r.json()).answer);
+      const row = await r.json();
+      onAsked(row);
+      setQuestion("");
     } catch (e) {
       flash(e instanceof Error ? e.message : "Question failed");
     } finally {
@@ -375,16 +420,45 @@ function Ask({
         <Bot size={22} />
       </div>
       <h3>Ask about this meeting</h3>
-      <p>Get an answer grounded in this meeting’s transcript.</p>
-      <form onSubmit={ask}>
+      <p>Chat with FireMe using only this meeting’s transcript.</p>
+      <div className="ask-thread" ref={threadRef}>
+        {history.length === 0 && !busy && (
+          <p className="muted ask-empty">
+            Ask anything — decisions, owners, follow-ups. Answers stay in this
+            thread.
+          </p>
+        )}
+        {history.map((item) => (
+          <div key={item.id} className="ask-turn">
+            <article className="ask-bubble user">
+              <strong>You</strong>
+              <p>{item.question}</p>
+            </article>
+            <article className="ask-bubble bot">
+              <strong>FireMe</strong>
+              <p>{item.answer}</p>
+            </article>
+          </div>
+        ))}
+        {busy && (
+          <article className="ask-bubble bot pending">
+            <strong>FireMe</strong>
+            <p>
+              <LoaderCircle className="spin" size={14} /> Thinking…
+            </p>
+          </article>
+        )}
+      </div>
+      <form onSubmit={ask} className="ask-compose">
         <textarea
           value={question}
           onChange={(e) => setQuestion(e.target.value)}
           placeholder="What did we decide about the roadmap?"
+          disabled={busy || !meeting.segments?.length}
         />
         <button
           className="new-btn"
-          disabled={busy || !meeting.segments?.length}
+          disabled={busy || !question.trim() || !meeting.segments?.length}
         >
           {busy ? (
             <LoaderCircle className="spin" size={16} />
@@ -394,12 +468,6 @@ function Ask({
           Ask FireMe
         </button>
       </form>
-      {answer && (
-        <article className="answer">
-          <strong>Answer</strong>
-          <p>{answer}</p>
-        </article>
-      )}
     </section>
   );
 }
@@ -786,6 +854,11 @@ function Workspace() {
     [dateTo, setDateTo] = useState(""),
     [tab, setTab] = useState<"summary" | "transcript" | "ask" | "clips">("summary"),
     [seek, setSeek] = useState(0),
+    [clipPlay, setClipPlay] = useState<{
+      start: number;
+      end: number;
+      token: number;
+    } | null>(null),
     [find, setFind] = useState(""),
     [dark, setDark] = useState(false),
     [modal, setModal] = useState<
@@ -865,6 +938,7 @@ function Workspace() {
     try {
       setSelected(await (await request(`/meetings/${id}`)).json());
       setSeek(0);
+      setClipPlay(null);
       setFind("");
     } catch (e) {
       flash(e instanceof Error ? e.message : "Could not open meeting");
@@ -1221,7 +1295,12 @@ function Workspace() {
                 {selected.participants.join(", ") || "No participants"}
               </p>
             </div>
-            <MediaPlayer meeting={selected} seek={seek} setSeek={setSeek} />
+            <MediaPlayer
+              meeting={selected}
+              seek={seek}
+              setSeek={setSeek}
+              clipPlay={clipPlay}
+            />
             <div className="tabs">
               <button
                 className={tab === "summary" ? "tab active" : "tab"}
@@ -1376,38 +1455,77 @@ function Workspace() {
                   </div>
                 </section>
               )}
-              {tab === "ask" && <Ask meeting={selected} flash={flash} />}
+              {tab === "ask" && (
+                <Ask
+                  meeting={selected}
+                  flash={flash}
+                  onAsked={(row) =>
+                    setSelected({
+                      ...selected,
+                      questions: [...(selected.questions || []), row],
+                    })
+                  }
+                />
+              )}
               {tab === "clips" && (
                 <section className="clips-panel">
                   <h3>Comments, highlights & soundbites</h3>
                   <p className="muted">
-                    Capture moments from the transcript. Click a clip to seek.
+                    Capture moments from the transcript. Soundbites play the
+                    clipped range on the recording.
                   </p>
                   <div className="clips-list">
                     {(selected.notes || []).length === 0 && (
-                      <p className="muted">No clips yet — add them from Transcript.</p>
+                      <p className="muted">
+                        No clips yet — add them from Transcript.
+                      </p>
                     )}
-                    {(selected.notes || []).map((note) => (
-                      <article key={note.id} className={`clip-card ${note.kind}`}>
-                        <button
-                          className="segment-time"
-                          onClick={() => {
-                            setSeek(note.start_seconds);
-                            setTab("transcript");
-                          }}
+                    {(selected.notes || []).map((note) => {
+                      const end =
+                        note.end_seconds ??
+                        note.start_seconds +
+                          (note.kind === "soundbite" ? 30 : 0);
+                      return (
+                        <article
+                          key={note.id}
+                          className={`clip-card ${note.kind}`}
                         >
-                          {fmt(note.start_seconds)}
-                          <Play size={12} />
-                        </button>
-                        <div>
-                          <strong>{note.kind}</strong>
-                          <p>{note.body || "—"}</p>
-                        </div>
-                        <button onClick={() => removeNote(note)}>
-                          <Trash2 size={14} />
-                        </button>
-                      </article>
-                    ))}
+                          <button
+                            className="segment-time"
+                            title={
+                              note.kind === "soundbite"
+                                ? "Play soundbite"
+                                : "Seek to moment"
+                            }
+                            onClick={() => {
+                              if (note.kind === "soundbite") {
+                                setClipPlay({
+                                  start: note.start_seconds,
+                                  end: Math.max(end, note.start_seconds + 1),
+                                  token: Date.now(),
+                                });
+                              } else {
+                                setSeek(note.start_seconds);
+                                setTab("transcript");
+                              }
+                            }}
+                          >
+                            {fmt(note.start_seconds)}
+                            {note.kind === "soundbite" && end > note.start_seconds
+                              ? `–${fmt(end)}`
+                              : ""}
+                            <Play size={12} />
+                          </button>
+                          <div>
+                            <strong>{note.kind}</strong>
+                            <p>{note.body || "—"}</p>
+                          </div>
+                          <button onClick={() => removeNote(note)}>
+                            <Trash2 size={14} />
+                          </button>
+                        </article>
+                      );
+                    })}
                   </div>
                 </section>
               )}

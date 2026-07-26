@@ -14,6 +14,12 @@ export type Note = {
   start_seconds: number;
   end_seconds?: number | null;
 };
+export type MeetingQuestion = {
+  id: number;
+  question: string;
+  answer: string;
+  created_at?: string | null;
+};
 export type Meeting = {
   id: number;
   title: string;
@@ -29,4 +35,5 @@ export type Meeting = {
   segments?: Segment[];
   actions?: Action[];
   notes?: Note[];
+  questions?: MeetingQuestion[];
 };

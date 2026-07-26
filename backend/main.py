@@ -435,9 +435,16 @@ def transcribe(meeting_id: int, user_id: str = Depends(current_user), db: Sessio
 def ask(meeting_id: int, payload: AskIn, user_id: str = Depends(current_user), db: Session = Depends(get_db)):
     meeting = get_meeting_or_404(meeting_id, user_id, db, True)
     answer = answer_question(meeting.segments, payload.question)
-    db.add(MeetingQuestion(meeting_id=meeting_id, question=payload.question, answer=answer))
+    row = MeetingQuestion(meeting_id=meeting_id, question=payload.question, answer=answer)
+    db.add(row)
     db.commit()
-    return {"answer": answer}
+    db.refresh(row)
+    return {
+        "id": row.id,
+        "question": row.question,
+        "answer": row.answer,
+        "created_at": row.created_at.isoformat() if row.created_at else None,
+    }
 
 
 @app.get("/api/meetings/{meeting_id}/media")

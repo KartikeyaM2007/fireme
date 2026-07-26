@@ -46,6 +46,15 @@ def serialise(m: Meeting, detail: bool = False):
             }
             for n in m.notes
         ]
+        item["questions"] = [
+            {
+                "id": q.id,
+                "question": q.question,
+                "answer": q.answer,
+                "created_at": q.created_at.isoformat() if q.created_at else None,
+            }
+            for q in sorted(m.questions, key=lambda x: x.id)
+        ]
     return item
 
 
@@ -56,6 +65,7 @@ def get_meeting_or_404(meeting_id: int, owner_id: str, db: Session, detail: bool
             selectinload(Meeting.segments),
             selectinload(Meeting.actions),
             selectinload(Meeting.notes),
+            selectinload(Meeting.questions),
         )
     meeting = db.scalar(stmt)
     if not meeting:
