@@ -47,8 +47,9 @@ import {
   X,
   Zap,
 } from "lucide-react";
+import { ColdStartNote } from "@/components/ColdStartNote";
 import type { Action, Meeting, Note, Segment } from "@/lib/types";
-import { API, bindRequestTiming, bindTokenGetter, getAccessToken, request, warmApi } from "@/lib/api";
+import { API, bindRequestTiming, bindTokenGetter, getAccessToken, request } from "@/lib/api";
 import { date, fmt, segmentEnd } from "@/lib/format";
 
 function MediaPlayer({
@@ -1041,7 +1042,7 @@ function Workspace() {
     bindRequestTiming({
       onSlow: () =>
         setApiNotice(
-          "Waking API… Render free tier can take 30–60s on first request.",
+          "Still waking the Render API — large first actions can take 30–60s.",
         ),
       onSettled: (_ms, ok) => {
         if (ok) setApiNotice("");
@@ -1049,26 +1050,6 @@ function Workspace() {
     });
     return () => bindRequestTiming({ onSlow: null, onSettled: null });
   }, []);
-  useEffect(() => {
-    if (!tokenReady) return;
-    let cancelled = false;
-    setApiNotice("Waking API… checking health");
-    warmApi().then((status) => {
-      if (cancelled) return;
-      if (status === "ok") setApiNotice("");
-      else if (status === "slow")
-        setApiNotice(
-          "API woke slowly. Ask / Generate / Transcribe may take longer on the first try.",
-        );
-      else
-        setApiNotice(
-          "API unreachable right now. If this is the first visit after idle, wait ~30s and refresh.",
-        );
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [tokenReady]);
   useEffect(() => {
     const raw = window.localStorage.getItem("fireme-pin");
     if (raw) setPinnedId(Number(raw) || null);
@@ -1365,6 +1346,7 @@ function Workspace() {
     );
   return (
     <>
+      <ColdStartNote className="cold-note-workspace" />
       {apiNotice && (
         <div className="api-banner" role="status">
           <LoaderCircle className="spin" size={14} />

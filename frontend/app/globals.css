@@ -2447,6 +2447,156 @@ html[data-theme="dark"] .api-banner {
   border-bottom-color: #2a2a35;
   color: #e8e8ef;
 }
+
+/* Render cold-start wake note */
+.cold-note {
+  position: fixed;
+  right: 22px;
+  bottom: 22px;
+  z-index: 60;
+  width: min(380px, calc(100vw - 28px));
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 12px;
+  align-items: start;
+  padding: 16px 14px 16px 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(180, 160, 255, 0.28);
+  background: rgba(12, 10, 28, 0.92);
+  color: #f2eefc;
+  backdrop-filter: blur(16px);
+  box-shadow:
+    0 18px 50px rgba(0, 0, 0, 0.35),
+    0 0 0 1px rgba(255, 255, 255, 0.04) inset;
+  overflow: hidden;
+  animation: cold-in 0.55s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.cold-note-landing {
+  top: 96px;
+  bottom: auto;
+  right: 22px;
+}
+.cold-note-workspace {
+  bottom: 22px;
+  right: 22px;
+}
+.cold-note-glow {
+  position: absolute;
+  inset: -40% -20% auto auto;
+  width: 180px;
+  height: 180px;
+  background: radial-gradient(circle, rgba(123, 92, 255, 0.35), transparent 70%);
+  pointer-events: none;
+  animation: cold-pulse 2.4s ease-in-out infinite;
+}
+.cold-note-orb {
+  width: 40px;
+  height: 40px;
+  border-radius: 14px;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(145deg, #7b5cff, #4f37d4);
+  box-shadow: 0 8px 20px rgba(91, 63, 232, 0.35);
+  position: relative;
+  z-index: 1;
+}
+.cold-note.ready .cold-note-orb {
+  background: linear-gradient(145deg, #34d399, #059669);
+}
+.cold-note.slow .cold-note-orb,
+.cold-note.down .cold-note-orb {
+  background: linear-gradient(145deg, #f59e0b, #d97706);
+}
+.cold-note-copy {
+  position: relative;
+  z-index: 1;
+  min-width: 0;
+}
+.cold-note-copy strong {
+  display: block;
+  font-size: 14px;
+  letter-spacing: -0.02em;
+  margin-bottom: 4px;
+}
+.cold-note-copy p {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: rgba(236, 230, 255, 0.82);
+}
+.cold-note-copy small {
+  display: inline-block;
+  margin-top: 8px;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: rgba(196, 180, 255, 0.7);
+}
+.cold-note-close {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  color: rgba(236, 230, 255, 0.7);
+  position: relative;
+  z-index: 1;
+}
+.cold-note-close:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+.cold-note.ready {
+  animation:
+    cold-in 0.55s cubic-bezier(0.22, 1, 0.36, 1),
+    cold-out 0.45s ease 3.7s forwards;
+}
+@keyframes cold-in {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes cold-out {
+  to {
+    opacity: 0;
+    transform: translateY(10px) scale(0.98);
+    pointer-events: none;
+  }
+}
+@keyframes cold-pulse {
+  0%,
+  100% {
+    opacity: 0.55;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.08);
+  }
+}
+@media (max-width: 760px) {
+  .cold-note,
+  .cold-note-landing,
+  .cold-note-workspace {
+    left: 14px;
+    right: 14px;
+    width: auto;
+    top: auto;
+    bottom: 14px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cold-note,
+  .cold-note.ready,
+  .cold-note-glow {
+    animation: none;
+  }
+}
 .process-error {
   margin: 10px 0 0;
   padding: 10px 12px;

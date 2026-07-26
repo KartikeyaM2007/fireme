@@ -17,6 +17,7 @@ import {
   Zap,
 } from "lucide-react";
 import { Starfield } from "@/components/Starfield";
+import { ColdStartNote } from "@/components/ColdStartNote";
 
 function AuthControls({ openWorkspace }: { openWorkspace: () => void }) {
   return (
@@ -79,6 +80,8 @@ function Landing({ openWorkspace }: { openWorkspace: () => void }) {
           See it in action <ArrowRight size={14} />
         </button>
       </div>
+
+      <ColdStartNote className="cold-note-landing" />
 
       <header className={`fm-nav ${scrolled ? "is-scrolled" : "on-hero"}`}>
         <button
