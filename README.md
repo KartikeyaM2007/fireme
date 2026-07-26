@@ -222,11 +222,33 @@ Interactive OpenAPI docs: `/docs`.
 
 - Export PDF / Markdown / TXT  
 - Global search across meetings (including transcript text)  
-- Topics on meetings  
+- Topics on meetings **with dedicated topic filter**  
 - LLM “Ask FireMe” about a meeting  
+- Comments / highlights / soundbites on transcript segments  
+- Dark mode toggle  
+- Durable media storage (Postgres `media_blobs`, optional Supabase Storage)  
+- Background transcription jobs (non-blocking HTTP)  
 
 ---
+
+## Project structure
+
+```text
+fireme/
+  frontend/
+    app/                 Next.js entry (page, layout, styles)
+    components/          Landing + Workspace modules
+    lib/                 API client, types, format helpers
+  backend/
+    main.py              FastAPI app + routes
+    auth.py / schemas.py / serialize.py / seed.py / exports.py
+    storage.py           Durable uploads (Postgres / Supabase)
+    jobs.py              Background transcription
+    models.py / services.py
+  README.md
+```
 
 ## Original work
 
 This repository is an original implementation for the Scaler assignment. It is not a fork of an existing Fireflies clone and is not affiliated with Fireflies.ai.
+

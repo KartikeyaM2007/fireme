@@ -1897,3 +1897,36 @@ button {
     padding-right: 20px;
   }
 }
+
+html[data-theme="dark"] body { background:#12101c; color:#ece8f8; }
+html[data-theme="dark"] .app-shell { background:#12101c; }
+html[data-theme="dark"] .sidebar,
+html[data-theme="dark"] .library,
+html[data-theme="dark"] .detail,
+html[data-theme="dark"] .modal { background:#1a1728; color:#ece8f8; border-color:#2e2a42; }
+html[data-theme="dark"] .nav-item { color:#b7b1cc; }
+html[data-theme="dark"] .nav-item.active,
+html[data-theme="dark"] .nav-item:hover { background:#2a2440; color:#c4b0ff; }
+html[data-theme="dark"] .searchbox,
+html[data-theme="dark"] .filter-btn,
+html[data-theme="dark"] .mini-search,
+html[data-theme="dark"] input,
+html[data-theme="dark"] textarea,
+html[data-theme="dark"] select { background:#221e33; border-color:#3a3452; color:#ece8f8; }
+html[data-theme="dark"] .meeting-row:hover,
+html[data-theme="dark"] .meeting-row.selected { background:#241f38; }
+html[data-theme="dark"] .topbar p,
+html[data-theme="dark"] .meeting-main div,
+html[data-theme="dark"] .muted,
+html[data-theme="dark"] .crumb { color:#9d97b5; }
+html[data-theme="dark"] .ff-site { background:#12101c; color:#ece8f8; }
+html[data-theme="dark"] .ff-nav { background:#1a1728; border-bottom-color:#2e2a42; }
+.clips-panel { padding:8px 4px 24px; }
+.clips-list { display:grid; gap:10px; margin-top:14px; }
+.clip-card { display:grid; grid-template-columns:auto 1fr auto; gap:12px; align-items:start; padding:12px; border:1px solid #ebe7f5; border-radius:12px; background:#fbfaff; }
+.clip-card.highlight { border-color:#f0d48a; background:#fffbeb; }
+.clip-card.soundbite { border-color:#c9b8ff; background:#f6f2ff; }
+.clip-card.comment { border-color:#b7e0d4; background:#f3fffb; }
+.clip-card strong { text-transform:capitalize; font-size:12px; }
+.clip-card p { margin:4px 0 0; font-size:13px; line-height:1.45; }
+html[data-theme="dark"] .clip-card { background:#221e33; border-color:#3a3452; }
