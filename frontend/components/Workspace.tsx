@@ -2018,6 +2018,10 @@ function Workspace({ onGoHome }: { onGoHome?: () => void }) {
             may sleep — the workspace shows a wake banner, and the first Ask /
             Generate / Transcribe call can take 30–60 seconds.
           </p>
+          <p className="muted" style={{ marginTop: 12 }}>
+            DB: SQLite locally (assignment schema); production uses Postgres with
+            the same schema.
+          </p>
           <div className="form-actions">
             <button className="new-btn" onClick={() => setModal(null)}>
               Close

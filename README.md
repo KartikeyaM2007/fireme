@@ -256,7 +256,7 @@ Do not commit secrets.
 
 ## Database schema
 
-Custom schema (evaluated per assignment). Designed around meetings, interactive transcripts, summaries, and action items.
+Custom schema (evaluated per assignment). Designed around meetings, interactive transcripts, summaries, and action items. SQLite is the default local engine; production points `DATABASE_URL` at Postgres and runs the same models.
 
 ### `meetings`
 
@@ -370,7 +370,7 @@ Interactive OpenAPI docs: `/docs`.
 4. **Auth:** Brief allows assuming a default logged-in user. This submission uses Clerk so the hosted multi-user demo stays private per account.
 5. **Media player:** Real `<video>` / `<audio>` when a file exists; otherwise a seek bar stays synced with transcript timestamps.
 6. **Placeholders:** Zoom/Meet/Teams bots and calendar auto-join are **Coming soon** in the Live hub; Settings also exposes calendar/CRM / sharing placeholders.
-7. **Database:** Assignment asks for SQLite schema design; SQLite works locally. Production uses the same schema on PostgreSQL through `DATABASE_URL`.
+7. **Database:** The PDF requires SQLite; we designed our own schema (see Database schema) and use SQLite by default locally (`sqlite:///./fireme.db` when `DATABASE_URL` is unset). The live/prod API uses Postgres via `DATABASE_URL` with the same SQLAlchemy schema for Render durability.
 8. **JSON columns:** `participants`, `topics`, and `chapters` are stored as JSON text for portable schema across SQLite and Postgres.
 9. **Cold starts:** Render free-tier dynos sleep when idle. FireMe shows an animated **ColdStartNote** on landing + workspace entry, warms `/api/health`, and uses a skeleton list so a slow wake does not look like an empty product.
 10. **Media streaming:** Playback uses a short-lived `access_token` query parameter because HTML media elements cannot send Authorization headers.
