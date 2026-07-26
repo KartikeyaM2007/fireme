@@ -1025,8 +1025,9 @@ function Workspace({ onGoHome }: { onGoHome?: () => void }) {
     [editingAction, setEditingAction] = useState<Action | null>(null),
     [tokenReady, setTokenReady] = useState(false),
     [busy, setBusy] = useState(false),
-    [notice, setNotice] = useState(""),
-    [noticeAction, setNoticeAction] = useState<"generate" | null>(null),
+    [toasts, setToasts] = useState<
+      { id: number; message: string; action?: "generate" }[]
+    >([]),
     [peopleOptions, setPeopleOptions] = useState<string[]>([]),
     [topicOptions, setTopicOptions] = useState<string[]>([]),
     [apiNotice, setApiNotice] = useState(""),
@@ -1036,7 +1037,7 @@ function Workspace({ onGoHome }: { onGoHome?: () => void }) {
     [mobileNav, setMobileNav] = useState(false),
     [view, setView] = useState<"meetings" | "live">("meetings"),
     linesRef = useRef<HTMLDivElement>(null),
-    noticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null),
+    toastSeq = useRef(0),
     prevProcessing = useRef<{ id?: number; status?: string }>({});
   useEffect(() => {
     const saved = window.localStorage.getItem("fireme-theme");
@@ -1074,17 +1075,15 @@ function Workspace({ onGoHome }: { onGoHome?: () => void }) {
     .join("")
     .slice(0, 2)
     .toUpperCase();
-  const flash = (
-    s: string,
-    opts?: { action?: "generate"; ms?: number },
-  ) => {
-    setNotice(s);
-    setNoticeAction(opts?.action ?? null);
-    if (noticeTimer.current) clearTimeout(noticeTimer.current);
-    noticeTimer.current = setTimeout(() => {
-      setNotice("");
-      setNoticeAction(null);
-    }, opts?.ms ?? 3200);
+  const dismissToast = (id: number) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
+  };
+  const flash = (s: string, opts?: { action?: "generate" }) => {
+    const id = ++toastSeq.current;
+    setToasts((prev) => [
+      ...prev,
+      { id, message: s, ...(opts?.action ? { action: opts.action } : {}) },
+    ]);
   };
   const load = async () => {
     if (!userId || !tokenReady) return;
@@ -1210,7 +1209,6 @@ function Workspace({ onGoHome }: { onGoHome?: () => void }) {
       status === "ready"
     ) {
       flash("Transcript ready — click Generate for AI summary", {
-        ms: 8000,
         action: "generate",
       });
     }
@@ -2074,25 +2072,35 @@ function Workspace({ onGoHome }: { onGoHome?: () => void }) {
           </div>
         </Modal>
       )}
-      {notice && (
-        <div className="toast" role="status">
-          <Check size={16} />
-          <span>{notice}</span>
-          {noticeAction === "generate" && (
-            <button
-              type="button"
-              className="toast-action"
-              onClick={() => {
-                setNotice("");
-                setNoticeAction(null);
-                if (noticeTimer.current) clearTimeout(noticeTimer.current);
-                setTab("summary");
-                void generate();
-              }}
-            >
-              Generate
-            </button>
-          )}
+      {toasts.length > 0 && (
+        <div className="toast-stack" aria-live="polite">
+          {toasts.map((t) => (
+            <div key={t.id} className="toast" role="status">
+              <Check size={16} />
+              <span>{t.message}</span>
+              {t.action === "generate" && (
+                <button
+                  type="button"
+                  className="toast-action"
+                  onClick={() => {
+                    dismissToast(t.id);
+                    setTab("summary");
+                    void generate();
+                  }}
+                >
+                  Generate
+                </button>
+              )}
+              <button
+                type="button"
+                className="toast-close"
+                aria-label="Dismiss notification"
+                onClick={() => dismissToast(t.id)}
+              >
+                <X size={14} />
+              </button>
+            </div>
+          ))}
         </div>
       )}
     </main>
