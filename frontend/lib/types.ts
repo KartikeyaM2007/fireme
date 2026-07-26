@@ -30,6 +30,7 @@ export type Meeting = {
   topics: string[];
   chapters: Chapter[];
   processing_status: string;
+  processing_error?: string | null;
   media_url?: string | null;
   media_type?: string | null;
   segments?: Segment[];

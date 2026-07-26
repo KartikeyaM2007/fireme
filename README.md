@@ -265,6 +265,8 @@ Interactive OpenAPI docs: `/docs`.
 6. **Placeholders:** Live bot, calendar/CRM integrations, and team sharing are exposed as **Settings → Coming soon**.
 7. **Database:** Assignment asks for SQLite schema design; SQLite works locally. Production uses the same schema on PostgreSQL through `DATABASE_URL`.
 8. **JSON columns:** `participants`, `topics`, and `chapters` are stored as JSON text for simple portable schema across SQLite and Postgres.
+9. **Cold starts:** Render free-tier dynos sleep when idle. The UI warms `/api/health` on workspace open and shows a banner if the API is slow to wake.
+10. **Media streaming:** HTML `<video>`/`<audio>` cannot send Authorization headers, so playback uses a short-lived `access_token` query parameter on the media URL.
 
 ---
 

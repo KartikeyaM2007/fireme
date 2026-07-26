@@ -14,3 +14,5 @@ backend/.env
 tmp/
 .pytest_cache/
 coverage/
+
+tmp_e2e/

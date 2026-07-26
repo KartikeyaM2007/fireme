@@ -30,21 +30,27 @@ def _run_transcription(meeting_id: int) -> None:
         if not meeting or not meeting.media_path:
             return
         meeting.processing_status = "transcribing"
+        meeting.processing_error = None
         db.commit()
         try:
             path = resolve_local_path(meeting.media_path, db)
             segments = transcribe_media(Path(path))
             if not segments:
-                meeting.processing_status = "awaiting_transcription"
+                meeting.processing_status = "transcription_failed"
+                meeting.processing_error = (
+                    "No speech detected. Retry with clearer audio, or paste a transcript."
+                )
                 db.commit()
                 return
             meeting.segments = [TranscriptSegment(**row) for row in segments]
             meeting.duration_seconds = max(row["start_seconds"] for row in segments)
             meeting.processing_status = "ready"
+            meeting.processing_error = None
             db.commit()
         except Exception as exc:
             print(f"transcription failed for meeting {meeting_id}: {exc}")
-            meeting.processing_status = "awaiting_transcription"
+            meeting.processing_status = "transcription_failed"
+            meeting.processing_error = str(exc)[:500]
             db.commit()
     finally:
         db.close()

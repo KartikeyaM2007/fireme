@@ -20,6 +20,7 @@ class Meeting(Base):
     media_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
     media_type: Mapped[str | None] = mapped_column(String(100), nullable=True)
     processing_status: Mapped[str] = mapped_column(String(40), default="ready")
+    processing_error: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     segments: Mapped[list["TranscriptSegment"]] = relationship(
         cascade="all, delete-orphan", back_populates="meeting", order_by="TranscriptSegment.start_seconds"

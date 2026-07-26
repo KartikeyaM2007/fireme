@@ -13,8 +13,8 @@ from fastapi.responses import FileResponse, PlainTextResponse
 from sqlalchemy import or_, select, text
 from sqlalchemy.orm import Session
 
-from auth import current_user
-from database import Base, engine, get_db
+from auth import current_user, media_user
+from database import Base, engine, ensure_schema, get_db
 from exports import export_pdf_bytes, export_text
 from jobs import start_transcription
 from models import ActionItem, Meeting, MeetingQuestion, SegmentNote, TranscriptSegment
@@ -45,26 +45,33 @@ MAX_UPLOAD_BYTES = int(os.getenv("MAX_UPLOAD_BYTES", str(50 * 1024 * 1024)))
 
 
 def add_missing_columns():
-    if engine.dialect.name != "sqlite":
-        return
     with engine.begin() as conn:
-        existing = {row[1] for row in conn.exec_driver_sql("PRAGMA table_info(meetings)")}
-        for name, definition in {
-            "owner_id": "VARCHAR(128)",
-            "chapters": "TEXT DEFAULT '[]'",
-            "media_path": "VARCHAR(500)",
-            "media_type": "VARCHAR(100)",
-            "processing_status": "VARCHAR(40) DEFAULT 'ready'",
-        }.items():
-            if name not in existing:
-                conn.exec_driver_sql(f"ALTER TABLE meetings ADD COLUMN {name} {definition}")
-        conn.exec_driver_sql("CREATE INDEX IF NOT EXISTS ix_meetings_owner_id ON meetings (owner_id)")
+        if engine.dialect.name == "sqlite":
+            existing = {row[1] for row in conn.exec_driver_sql("PRAGMA table_info(meetings)")}
+            for name, definition in {
+                "owner_id": "VARCHAR(128)",
+                "chapters": "TEXT DEFAULT '[]'",
+                "media_path": "VARCHAR(500)",
+                "media_type": "VARCHAR(100)",
+                "processing_status": "VARCHAR(40) DEFAULT 'ready'",
+                "processing_error": "TEXT",
+            }.items():
+                if name not in existing:
+                    conn.exec_driver_sql(f"ALTER TABLE meetings ADD COLUMN {name} {definition}")
+            conn.exec_driver_sql(
+                "CREATE INDEX IF NOT EXISTS ix_meetings_owner_id ON meetings (owner_id)"
+            )
+        else:
+            conn.exec_driver_sql(
+                "ALTER TABLE meetings ADD COLUMN IF NOT EXISTS processing_error TEXT"
+            )
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
     add_missing_columns()
+    ensure_schema()
     if os.getenv("SEED_DEMO_DATA", "true").lower() in {"1", "true", "yes"}:
         seed()
     yield
@@ -426,6 +433,7 @@ def transcribe(meeting_id: int, user_id: str = Depends(current_user), db: Sessio
     except FileNotFoundError:
         raise HTTPException(404, "The recording file is missing") from None
     meeting.processing_status = "transcribing"
+    meeting.processing_error = None
     db.commit()
     start_transcription(meeting_id)
     return serialise(get_meeting_or_404(meeting_id, user_id, db, True), True)
@@ -448,7 +456,7 @@ def ask(meeting_id: int, payload: AskIn, user_id: str = Depends(current_user), d
 
 
 @app.get("/api/meetings/{meeting_id}/media")
-def meeting_media(meeting_id: int, user_id: str = Depends(current_user), db: Session = Depends(get_db)):
+def meeting_media(meeting_id: int, user_id: str = Depends(media_user), db: Session = Depends(get_db)):
     meeting = get_meeting_or_404(meeting_id, user_id, db)
     if not meeting.media_path:
         raise HTTPException(404, "This meeting has no recording")

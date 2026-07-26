@@ -18,6 +18,7 @@ def serialise(m: Meeting, detail: bool = False):
         "topics": json.loads(m.topics),
         "chapters": json.loads(m.chapters or "[]"),
         "processing_status": m.processing_status,
+        "processing_error": getattr(m, "processing_error", None),
         "media_url": f"/api/meetings/{m.id}/media" if m.media_path else None,
         "media_type": m.media_type,
     }

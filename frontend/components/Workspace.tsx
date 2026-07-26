@@ -45,7 +45,7 @@ import {
   Zap,
 } from "lucide-react";
 import type { Action, Meeting, Note, Segment } from "@/lib/types";
-import { bindTokenGetter, request } from "@/lib/api";
+import { API, bindRequestTiming, bindTokenGetter, getAccessToken, request, warmApi } from "@/lib/api";
 import { date, fmt, segmentEnd } from "@/lib/format";
 
 function MediaPlayer({
@@ -65,6 +65,8 @@ function MediaPlayer({
     clipEndRef = useRef<number | null>(null),
     [duration, setDuration] = useState(meeting.duration_seconds || 1),
     [src, setSrc] = useState(""),
+    [mediaLoading, setMediaLoading] = useState(false),
+    [mediaError, setMediaError] = useState(""),
     [playing, setPlaying] = useState(false);
   useEffect(() => {
     setDuration(Math.max(meeting.duration_seconds || 1, 1));
@@ -74,20 +76,34 @@ function MediaPlayer({
   useEffect(() => {
     if (!mediaPath) {
       setSrc("");
+      setMediaError("");
+      setMediaLoading(false);
       return;
     }
-    let objectUrl = "",
-      active = true;
-    request(mediaPath)
-      .then((response: Response) => response.blob())
-      .then((blob: Blob) => {
-        objectUrl = URL.createObjectURL(blob);
-        if (active) setSrc(objectUrl);
-      })
-      .catch(() => setSrc(""));
+    let active = true;
+    setMediaLoading(true);
+    setMediaError("");
+    setSrc("");
+    (async () => {
+      try {
+        const token = await getAccessToken();
+        if (!active) return;
+        if (!token) {
+          setMediaError("Sign in again to load this recording.");
+          return;
+        }
+        // Stream via query token so <video>/<audio> can seek without downloading the full blob first.
+        setSrc(
+          `${API}${mediaPath}?access_token=${encodeURIComponent(token)}`,
+        );
+      } catch {
+        if (active) setMediaError("Could not authorize media playback.");
+      } finally {
+        if (active) setMediaLoading(false);
+      }
+    })();
     return () => {
       active = false;
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
   }, [mediaPath]);
   useEffect(() => {
@@ -152,6 +168,11 @@ function MediaPlayer({
               }
               onPlay={() => setPlaying(true)}
               onPause={() => setPlaying(false)}
+              onError={() =>
+                setMediaError(
+                  "Recording failed to play. Token may have expired — reopen the meeting.",
+                )
+              }
               onTimeUpdate={(e) => onTimeUpdate(e.currentTarget.currentTime)}
             />
           ) : (
@@ -170,6 +191,11 @@ function MediaPlayer({
               }
               onPlay={() => setPlaying(true)}
               onPause={() => setPlaying(false)}
+              onError={() =>
+                setMediaError(
+                  "Recording failed to play. Token may have expired — reopen the meeting.",
+                )
+              }
               onTimeUpdate={(e) => onTimeUpdate(e.currentTarget.currentTime)}
             />
           )}
@@ -178,18 +204,30 @@ function MediaPlayer({
         <div className="no-media">
           <FileAudio size={24} />
           <div>
-            <strong>Placeholder player</strong>
+            <strong>
+              {mediaLoading
+                ? "Loading recording…"
+                : mediaError
+                  ? "Recording unavailable"
+                  : meeting.media_url
+                    ? "Preparing player…"
+                    : "Placeholder player"}
+            </strong>
             <span>
-              No recording attached. Use the seek bar or click a transcript
-              timestamp — active lines stay in sync.
+              {mediaError ||
+                (meeting.media_url
+                  ? "Fetching authorized media stream…"
+                  : "No recording attached. Use the seek bar or click a transcript timestamp — active lines stay in sync.")}
             </span>
           </div>
-          <button
-            className="new-btn"
-            onClick={() => setPlaying((value) => !value)}
-          >
-            {playing ? "Pause" : "Play"}
-          </button>
+          {!meeting.media_url && (
+            <button
+              className="new-btn"
+              onClick={() => setPlaying((value) => !value)}
+            >
+              {playing ? "Pause" : "Play"}
+            </button>
+          )}
         </div>
       )}
       <div className="player-controls">
@@ -262,18 +300,23 @@ function Summary({
                   : "Status: " + meeting.processing_status.replaceAll("_", " ")}
               </small>
             </div>
-            {meeting.media_url && !meeting.segments?.length ? (
+            {meeting.media_url &&
+            (!meeting.segments?.length ||
+              meeting.processing_status === "transcription_failed" ||
+              meeting.processing_status === "awaiting_transcription") ? (
               <button
                 className="new-btn"
                 onClick={onTranscribe}
-                disabled={busy}
+                disabled={busy || meeting.processing_status === "transcribing"}
               >
-                {busy ? (
+                {busy || meeting.processing_status === "transcribing" ? (
                   <LoaderCircle className="spin" size={15} />
                 ) : (
                   <FileAudio size={15} />
                 )}
-                Transcribe
+                {meeting.processing_status === "transcription_failed"
+                  ? "Retry transcribe"
+                  : "Transcribe"}
               </button>
             ) : (
               <button
@@ -290,6 +333,17 @@ function Summary({
               </button>
             )}
           </div>
+          {meeting.processing_error && (
+            <p className="process-error" role="alert">
+              {meeting.processing_error}
+            </p>
+          )}
+          {meeting.processing_status === "transcribing" && (
+            <p className="process-hint">
+              Transcription is running in the background. Large files can take a
+              minute — keep this meeting open.
+            </p>
+          )}
           <p>
             {meeting.summary ||
               "Add a transcript, then generate AI insights with the server-configured provider."}
@@ -884,13 +938,46 @@ function Workspace() {
     [busy, setBusy] = useState(false),
     [notice, setNotice] = useState(""),
     [peopleOptions, setPeopleOptions] = useState<string[]>([]),
-    [topicOptions, setTopicOptions] = useState<string[]>([]);
+    [topicOptions, setTopicOptions] = useState<string[]>([]),
+    [apiNotice, setApiNotice] = useState("");
   useEffect(() => {
     const saved = window.localStorage.getItem("fireme-theme");
     const next = saved === "dark";
     setDark(next);
     document.documentElement.dataset.theme = next ? "dark" : "light";
   }, []);
+  useEffect(() => {
+    bindRequestTiming({
+      onSlow: () =>
+        setApiNotice(
+          "API is waking up (Render free tier). First request can take 30–60s — please wait.",
+        ),
+      onSettled: (_ms, ok) => {
+        if (ok) setApiNotice("");
+      },
+    });
+    return () => bindRequestTiming({ onSlow: null, onSettled: null });
+  }, []);
+  useEffect(() => {
+    if (!tokenReady) return;
+    let cancelled = false;
+    setApiNotice("Checking API health…");
+    warmApi().then((status) => {
+      if (cancelled) return;
+      if (status === "ok") setApiNotice("");
+      else if (status === "slow")
+        setApiNotice(
+          "API woke slowly. Ask / Generate / Transcribe may take longer on the first try.",
+        );
+      else
+        setApiNotice(
+          "API unreachable right now. If this is the first visit after idle, wait ~30s and refresh.",
+        );
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [tokenReady]);
   const toggleTheme = () => {
     const next = !dark;
     setDark(next);
@@ -1117,7 +1204,17 @@ function Workspace() {
       </main>
     );
   return (
-    <main className="app-shell">
+    <>
+      {apiNotice && (
+        <div className="api-banner" role="status">
+          <LoaderCircle className="spin" size={14} />
+          <span>{apiNotice}</span>
+          <button type="button" onClick={() => setApiNotice("")}>
+            Dismiss
+          </button>
+        </div>
+      )}
+      <main className="app-shell">
       <aside className="sidebar">
         <div className="brand">
           <span className="brand-mark">✦</span>fireme<span>.ai</span>
@@ -1607,6 +1704,11 @@ function Workspace() {
             Settings is a placeholder for the assignment. Live meeting bots,
             calendar sync, and integrations are out of scope — Coming soon.
           </p>
+          <p className="muted" style={{ marginTop: 12 }}>
+            Hosting note: the API runs on Render’s free tier. After idle time it
+            may sleep — the workspace shows a wake banner, and the first Ask /
+            Generate / Transcribe call can take 30–60 seconds.
+          </p>
           <div className="form-actions">
             <button className="new-btn" onClick={() => setModal(null)}>
               Close
@@ -1669,6 +1771,7 @@ function Workspace() {
         </div>
       )}
     </main>
+    </>
   );
 }
 

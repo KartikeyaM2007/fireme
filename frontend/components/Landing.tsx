@@ -53,16 +53,16 @@ function AuthControls({ openWorkspace }: { openWorkspace: () => void }) {
     <>
       <Show when="signed-out">
         <SignInButton>
-          <button className="ff-login">Sign in</button>
+          <button className="fm-login">Sign in</button>
         </SignInButton>
         <SignUpButton>
-          <button className="ff-cta small">
+          <button className="fm-cta small">
             Get started <ArrowRight size={15} />
           </button>
         </SignUpButton>
       </Show>
       <Show when="signed-in">
-        <button className="ff-login" onClick={openWorkspace}>
+        <button className="fm-login" onClick={openWorkspace}>
           Open workspace
         </button>
         <UserButton />
@@ -100,17 +100,17 @@ function Landing({ openWorkspace }: { openWorkspace: () => void }) {
   ];
   const demos = ["Overview", "Decisions", "Action items", "Follow-up"];
   return (
-    <div className="ff-site">
-      <div className="ff-banner">
+    <div className="fm-site">
+      <div className="fm-banner">
         <span>NEW</span>
         <p>Meeting intelligence that keeps your momentum moving.</p>
         <button onClick={openWorkspace}>
           See it in action <ArrowRight size={14} />
         </button>
       </div>
-      <header className="ff-nav">
+      <header className="fm-nav">
         <button
-          className="ff-logo"
+          className="fm-logo"
           onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
         >
           <i>✦</i>fireme<span>.ai</span>
@@ -122,14 +122,16 @@ function Landing({ openWorkspace }: { openWorkspace: () => void }) {
         </nav>
         <div>
           <AuthControls openWorkspace={openWorkspace} />
-          <button className="ff-menu">
+          <button className="fm-menu">
             <Menu size={20} />
           </button>
         </div>
       </header>
       <main>
-        <section className="ff-hero">
-          <div className="ff-eyebrow">
+        <section className="fm-hero">
+          <div className="fm-stars" aria-hidden="true" />
+          <div className="fm-stars fm-stars-drift" aria-hidden="true" />
+          <div className="fm-eyebrow">
             <span></span> MEETING INTELLIGENCE, REIMAGINED
           </div>
           <h1>
@@ -141,16 +143,16 @@ function Landing({ openWorkspace }: { openWorkspace: () => void }) {
             Capture conversations, turn them into clear next steps, and move
             from discussion to action—without losing a detail.
           </p>
-          <div className="ff-hero-actions">
+          <div className="fm-hero-actions">
             <Show when="signed-out">
               <SignUpButton>
-                <button className="ff-cta">
+                <button className="fm-cta">
                   Create your account <ArrowRight size={17} />
                 </button>
               </SignUpButton>
             </Show>
             <Show when="signed-in">
-              <button className="ff-cta" onClick={openWorkspace}>
+              <button className="fm-cta" onClick={openWorkspace}>
                 Open your workspace <ArrowRight size={17} />
               </button>
             </Show>
@@ -158,16 +160,14 @@ function Landing({ openWorkspace }: { openWorkspace: () => void }) {
               Explore the product <ArrowRight size={16} />
             </a>
           </div>
-          <div className="ff-social">
+          <div className="fm-social">
             <div className="stars">★★★★★</div>
             <span>Built for teams that value their time</span>
             <i>•</i>
             <span>Private by design</span>
           </div>
-          <div className="ff-orbit o1"></div>
-          <div className="ff-orbit o2"></div>
         </section>
-        <section className="ff-showcase reveal">
+        <section className="fm-showcase reveal">
           <div className="showcase-top">
             <span className="live-dot">● Workspace preview</span>
             <span>Product roadmap sync</span>
@@ -233,7 +233,7 @@ function Landing({ openWorkspace }: { openWorkspace: () => void }) {
             </article>
           </div>
         </section>
-        <section className="ff-logo-row reveal">
+        <section className="fm-logo-row reveal">
           <span>BUILT FOR THE FIREFLIES-STYLE POST-MEETING WORKFLOW</span>
           <div>
             <b>Library</b>
@@ -243,8 +243,8 @@ function Landing({ openWorkspace }: { openWorkspace: () => void }) {
             <b>Ask</b>
           </div>
         </section>
-        <section id="product" className="ff-section split reveal">
-          <div className="ff-copy">
+        <section id="product" className="fm-section split reveal">
+          <div className="fm-copy">
             <span className="section-kicker">01 — CAPTURE</span>
             <h2>
               Every conversation becomes a <em>searchable asset.</em>
@@ -257,7 +257,7 @@ function Landing({ openWorkspace }: { openWorkspace: () => void }) {
               Explore meeting library <ArrowRight size={16} />
             </button>
           </div>
-          <div className="ff-visual transcript-card">
+          <div className="fm-visual transcript-card">
             <div className="visual-head">
               <span className="tiny-dot"></span>
               <b>Live transcript</b>
@@ -286,7 +286,7 @@ function Landing({ openWorkspace }: { openWorkspace: () => void }) {
             </div>
           </div>
         </section>
-        <section className="ff-band">
+        <section className="fm-band">
           <div className="reveal">
             <span className="section-kicker">02 — SYNTHESIZE</span>
             <h2>
@@ -297,7 +297,7 @@ function Landing({ openWorkspace }: { openWorkspace: () => void }) {
               conversation—not a generic template.
             </p>
           </div>
-          <div className="ff-band-cards reveal">
+          <div className="fm-band-cards reveal">
             <div>
               <Sparkles />
               <b>Decision-ready briefs</b>
@@ -315,7 +315,7 @@ function Landing({ openWorkspace }: { openWorkspace: () => void }) {
             </div>
           </div>
         </section>
-        <section id="workflows" className="ff-section workflows reveal">
+        <section id="workflows" className="fm-section workflows reveal">
           <div className="center-copy">
             <span className="section-kicker">03 — WORK YOUR WAY</span>
             <h2>
@@ -357,7 +357,7 @@ function Landing({ openWorkspace }: { openWorkspace: () => void }) {
                   ][active]
                 }
               </p>
-              <button className="ff-cta small" onClick={openWorkspace}>
+              <button className="fm-cta small" onClick={openWorkspace}>
                 Try it yourself <ArrowRight size={15} />
               </button>
             </div>
@@ -370,7 +370,7 @@ function Landing({ openWorkspace }: { openWorkspace: () => void }) {
             </div>
           </div>
         </section>
-        <section id="security" className="ff-section security reveal">
+        <section id="security" className="fm-section security reveal">
           <div className="security-orb">
             <ShieldCheck size={58} />
             <span>
@@ -379,7 +379,7 @@ function Landing({ openWorkspace }: { openWorkspace: () => void }) {
               BY DESIGN
             </span>
           </div>
-          <div className="ff-copy">
+          <div className="fm-copy">
             <span className="section-kicker">04 — YOUR CONTEXT</span>
             <h2>
               Conversation intelligence with <em>control.</em>
@@ -401,7 +401,7 @@ function Landing({ openWorkspace }: { openWorkspace: () => void }) {
             </div>
           </div>
         </section>
-        <section className="ff-final reveal">
+        <section className="fm-final reveal">
           <span className="section-kicker">START WHERE THE WORK HAPPENS</span>
           <h2>
             Make every conversation <em>count twice.</em>
@@ -410,14 +410,14 @@ function Landing({ openWorkspace }: { openWorkspace: () => void }) {
             Once in the room. Then everywhere it needs to move your work
             forward.
           </p>
-          <button className="ff-cta" onClick={openWorkspace}>
+          <button className="fm-cta" onClick={openWorkspace}>
             Open FireMe <ArrowRight size={17} />
           </button>
         </section>
       </main>
-      <footer className="ff-footer">
+      <footer className="fm-footer">
         <button
-          className="ff-logo"
+          className="fm-logo"
           onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
         >
           <i>✦</i>fireme<span>.ai</span>
