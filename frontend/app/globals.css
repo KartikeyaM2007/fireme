@@ -466,6 +466,7 @@
   box-shadow: 0 28px 70px #251c4b19;
   overflow: hidden;
   background: #fff;
+  color: var(--ink);
 }
 .showcase-top {
   height: 43px;
@@ -587,10 +588,11 @@
 .fake-grid h3 {
   font: 700 17px Manrope;
   margin: 8px 0;
+  color: var(--ink);
 }
 .fake-grid p {
   font-size: 11px;
-  color: #6d667c;
+  color: #564f68;
   line-height: 1.55;
 }
 .purple-label {
@@ -620,7 +622,7 @@
 }
 .fake-tasks small {
   float: right;
-  color: #958fa2;
+  color: #6f687c;
 }
 .fm-logo-row {
   border-top: 1px solid #f0edf5;
@@ -661,7 +663,7 @@
 .fm-copy p,
 .center-copy p,
 .fm-final p {
-  color: #6d667d;
+  color: #564f68;
   font-size: 15px;
   line-height: 1.65;
   max-width: 460px;
@@ -671,6 +673,7 @@
   border-radius: 12px;
   box-shadow: 0 20px 50px #2c1e5013;
   background: #fff;
+  color: var(--ink);
   padding: 18px;
 }
 .visual-head {
@@ -810,9 +813,12 @@
   border-radius: 13px;
   overflow: hidden;
   box-shadow: 0 18px 48px #20144312;
+  background: #fff;
+  color: var(--ink);
 }
 .workflow-main {
   padding: 48px;
+  color: var(--ink);
 }
 .workflow-main small {
   color: #7553df;
@@ -824,9 +830,10 @@
   font: 700 28px/1.12 Manrope;
   letter-spacing: -1px;
   margin: 13px 0;
+  color: var(--ink);
 }
 .workflow-main p {
-  color: #716a80;
+  color: #564f68;
   font-size: 13px;
   line-height: 1.6;
   margin-bottom: 25px;
@@ -912,9 +919,17 @@
   padding: 120px 20px 136px;
   text-align: center;
   background: radial-gradient(circle at 50% 100%, #eee7ff, #fff 60%);
+  color: var(--ink);
+}
+.fm-final h2 {
+  color: var(--ink);
+}
+.fm-final .section-kicker {
+  color: #5a5275;
 }
 .fm-final p {
   margin: 0 auto 29px;
+  color: #564f68;
 }
 .fm-footer {
   padding: 33px 6vw;
@@ -922,12 +937,12 @@
   display: flex;
   align-items: center;
   gap: 25px;
-  color: #766e84;
+  color: #5f586e;
   font-size: 11px;
 }
 .fm-footer small {
   margin-left: auto;
-  color: #a39cac;
+  color: #7a7388;
 }
 .reveal {
   opacity: 0;
