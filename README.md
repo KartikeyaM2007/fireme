@@ -17,11 +17,26 @@ Public repo layout: `frontend/` + `backend/` (as required).
 ## Quick demo path
 
 1. Open https://fireme-chi.vercel.app and sign in with Clerk.
-2. Click **Open your workspace** (or **Get Started**).
-3. Pick a meeting (e.g. `WIN 20260723 Pro` or a seeded roadmap meeting).
-4. Try **Summary → Transcript (click a timestamp) → Ask FireMe → Export**.
+2. On first load, an animated **Render cold-start** card appears (landing + workspace) while the UI warms `/api/health`.
+3. Click **Open your workspace** (or **Get Started**).
+4. Prefer **Product roadmap sync** (pinned / demo extras) or **WIN 20260723 Pro** (real video).
+5. Try **Summary → Talk time → Transcript search → Ask FireMe → Clips → Export**.
 
-> Render free-tier may sleep when idle. On first open, wait a few seconds if the library shows `0 meetings` — the UI warms `/api/health` and loads once the API wakes.
+### Render free-tier cold start (important for reviewers)
+
+The API is hosted on **Render’s free tier**. Idle dynos sleep, so the **first request after idle can take 30–60 seconds**. This is expected — not a broken deploy.
+
+**What FireMe does about it**
+
+- On **landing** and **workspace** entry, a glass **ColdStartNote** card animates in with copy like *“Waking the API”* / *“API is ready”*.
+- It calls `GET /api/health` in the background to wake the dyno early.
+- The meetings list shows a **skeleton** instead of a fake empty library while waiting.
+- Mid-session slow calls still show a slim status banner if needed.
+
+**Reviewer tip:** open the site once, wait for the note to flip to **API is ready**, then walk the demo. If the card says the API is still waking, wait ~30s and retry — do not score that as a failed feature.
+
+Component: `frontend/components/ColdStartNote.tsx`  
+Health check: `https://fireme.onrender.com/api/health`
 
 ---
 
@@ -355,7 +370,7 @@ Interactive OpenAPI docs: `/docs`.
 6. **Placeholders:** Live bot, calendar/CRM integrations, and team sharing are exposed as **Settings → Coming soon**.
 7. **Database:** Assignment asks for SQLite schema design; SQLite works locally. Production uses the same schema on PostgreSQL through `DATABASE_URL`.
 8. **JSON columns:** `participants`, `topics`, and `chapters` are stored as JSON text for portable schema across SQLite and Postgres.
-9. **Cold starts:** Render free-tier dynos sleep when idle. The UI warms `/api/health` on workspace open and shows a banner if the API is slow to wake.
+9. **Cold starts:** Render free-tier dynos sleep when idle. FireMe shows an animated **ColdStartNote** on landing + workspace entry, warms `/api/health`, and uses a skeleton list so a slow wake does not look like an empty product.
 10. **Media streaming:** Playback uses a short-lived `access_token` query parameter because HTML media elements cannot send Authorization headers.
 
 ---
@@ -379,6 +394,8 @@ Interactive OpenAPI docs: `/docs`.
 - Durable media storage (Postgres `media_blobs`)  
 - Background transcription jobs (non-blocking HTTP) + ffmpeg pre-compress  
 - Interactive canvas starfield + transparent scrolled header on the marketing page  
+- Animated **Render cold-start note** (`ColdStartNote`) on site entry + library skeleton while waking  
+- Talk-time bars, pin/share, timestamp deep links, Speaker N labels after STT  
 
 ---
 
@@ -388,7 +405,7 @@ Interactive OpenAPI docs: `/docs`.
 fireme/
   frontend/
     app/                 Next.js entry (page, layout, styles)
-    components/          Landing, Starfield, Workspace modules
+    components/          Landing, Starfield, ColdStartNote, Workspace
     lib/                 API client, types, format helpers
   backend/
     main.py              FastAPI app + routes
