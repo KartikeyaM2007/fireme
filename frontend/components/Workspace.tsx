@@ -35,6 +35,7 @@ import {
   Pin,
   Play,
   Plus,
+  Radio,
   Search,
   Settings,
   Share2,
@@ -48,6 +49,7 @@ import {
   Zap,
 } from "lucide-react";
 import { ColdStartNote } from "@/components/ColdStartNote";
+import { LiveHub } from "@/components/LiveHub";
 import type { Action, Meeting, Note, Segment } from "@/lib/types";
 import { API, bindRequestTiming, bindTokenGetter, getAccessToken, request } from "@/lib/api";
 import { date, fmt, segmentEnd } from "@/lib/format";
@@ -1031,6 +1033,7 @@ function Workspace() {
     [pinnedId, setPinnedId] = useState<number | null>(null),
     [mobilePane, setMobilePane] = useState<"list" | "detail">("list"),
     [mobileNav, setMobileNav] = useState(false),
+    [view, setView] = useState<"meetings" | "live">("meetings"),
     linesRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const saved = window.localStorage.getItem("fireme-theme");
@@ -1356,7 +1359,7 @@ function Workspace() {
           </button>
         </div>
       )}
-      <main className={`app-shell ${mobilePane === "detail" ? "show-detail" : "show-list"}`}>
+      <main className={`app-shell ${view === "live" ? "live-mode" : ""} ${mobilePane === "detail" ? "show-detail" : "show-list"}`}>
       <aside className={`sidebar ${mobileNav ? "open" : ""}`}>
         <div className="brand">
           <span className="brand-mark">✦</span>fireme<span>.ai</span>
@@ -1372,9 +1375,26 @@ function Workspace() {
           <Upload size={16} /> Import recording or transcript
         </button>
         <nav>
-          <button className="nav-item active">
+          <button
+            className={`nav-item ${view === "meetings" ? "active" : ""}`}
+            onClick={() => {
+              setView("meetings");
+              setMobileNav(false);
+            }}
+          >
             <FileText size={18} />
             My meetings
+          </button>
+          <button
+            className={`nav-item ${view === "live" ? "active" : ""}`}
+            onClick={() => {
+              setView("live");
+              setMobileNav(false);
+            }}
+          >
+            <Radio size={18} />
+            Live
+            <b>New</b>
           </button>
           <button className="nav-item" onClick={() => setModal("settings")}>
             <Settings size={18} />
@@ -1404,6 +1424,19 @@ function Workspace() {
           </div>
         </div>
       </aside>
+      {view === "live" ? (
+        <LiveHub
+          onBack={() => setView("meetings")}
+          onSaved={async (id) => {
+            setView("meetings");
+            await load();
+            await open(id);
+            setTab("transcript");
+            flash("Live capture saved as a meeting");
+          }}
+        />
+      ) : (
+        <>
       <section className="library">
         <header className="topbar">
           <div className="topbar-lead">
@@ -1871,6 +1904,8 @@ function Workspace() {
           <div className="empty">Select or create a meeting to begin.</div>
         )}
       </section>
+        </>
+      )}
       {modal === "create" && (
         <MeetingForm
           onClose={() => setModal(null)}
@@ -1940,8 +1975,9 @@ function Workspace() {
       {modal === "settings" && (
         <Modal title="Settings" close={() => setModal(null)}>
           <p className="muted coming-soon">
-            Settings is a placeholder for the assignment. Live meeting bots,
-            calendar sync, and integrations are out of scope — Coming soon.
+            Settings is a placeholder for calendar CRM sync. Zoom / Meet / Teams
+            bots remain Coming soon — use the Live tab for browser mic capture
+            that saves into your normal meeting workspace.
           </p>
           <p className="muted" style={{ marginTop: 12 }}>
             Hosting note: the API runs on Render’s free tier. After idle time it

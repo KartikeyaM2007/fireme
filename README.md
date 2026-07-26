@@ -21,6 +21,7 @@ Public repo layout: `frontend/` + `backend/` (as required).
 3. Click **Open your workspace** (or **Get Started**).
 4. Prefer **Product roadmap sync** (pinned / demo extras) or **WIN 20260723 Pro** (real video).
 5. Try **Summary → Talk time → Transcript search → Ask FireMe → Clips → Export**.
+6. Optional: open the **Live** sidebar tab → **Browser live capture** (mic) or review Zoom/Meet/Teams Coming soon cards.
 
 ### Render free-tier cold start (important for reviewers)
 
@@ -362,7 +363,7 @@ Interactive OpenAPI docs: `/docs`.
 
 ## Assumptions made
 
-1. **Scope:** Focus is the Fireflies **post-meeting** workspace (library + transcript + summary), not live call bots.
+1. **Scope:** Focus is the Fireflies **post-meeting** workspace (library + transcript + summary), not production Zoom/Meet/Teams bots. A **Live** hub offers Coming-soon platform cards plus **browser microphone capture** (Web Speech API) that saves into the same meeting model.
 2. **STT:** Assignment marks real speech-to-text as out of scope / placeholder-OK. Seeded transcripts and file upload satisfy the core path; Groq transcription (+ ffmpeg compress under the 25MB limit) is an optional enhancement when media is present.
 3. **AI summaries:** May be seeded or LLM-generated from transcript text (both supported).
 4. **Auth:** Brief allows assuming a default logged-in user. This submission uses Clerk so the hosted multi-user demo stays private per account.
@@ -396,6 +397,7 @@ Interactive OpenAPI docs: `/docs`.
 - Interactive canvas starfield + transparent scrolled header on the marketing page  
 - Animated **Render cold-start note** (`ColdStartNote`) on site entry + library skeleton while waking  
 - Talk-time bars, pin/share, timestamp deep links, Speaker N labels after STT  
+- **Live hub** — Zoom/Meet/Teams + calendar Coming soon, plus **browser mic live capture** that saves a meeting  
 
 ---
 
@@ -405,7 +407,7 @@ Interactive OpenAPI docs: `/docs`.
 fireme/
   frontend/
     app/                 Next.js entry (page, layout, styles)
-    components/          Landing, Starfield, ColdStartNote, Workspace
+    components/          Landing, Starfield, ColdStartNote, LiveHub, Workspace
     lib/                 API client, types, format helpers
   backend/
     main.py              FastAPI app + routes
