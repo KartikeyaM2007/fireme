@@ -1026,6 +1026,7 @@ function Workspace({ onGoHome }: { onGoHome?: () => void }) {
     [tokenReady, setTokenReady] = useState(false),
     [busy, setBusy] = useState(false),
     [notice, setNotice] = useState(""),
+    [noticeAction, setNoticeAction] = useState<"generate" | null>(null),
     [peopleOptions, setPeopleOptions] = useState<string[]>([]),
     [topicOptions, setTopicOptions] = useState<string[]>([]),
     [apiNotice, setApiNotice] = useState(""),
@@ -1034,7 +1035,9 @@ function Workspace({ onGoHome }: { onGoHome?: () => void }) {
     [mobilePane, setMobilePane] = useState<"list" | "detail">("list"),
     [mobileNav, setMobileNav] = useState(false),
     [view, setView] = useState<"meetings" | "live">("meetings"),
-    linesRef = useRef<HTMLDivElement>(null);
+    linesRef = useRef<HTMLDivElement>(null),
+    noticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null),
+    prevProcessing = useRef<{ id?: number; status?: string }>({});
   useEffect(() => {
     const saved = window.localStorage.getItem("fireme-theme");
     const next = saved === "dark";
@@ -1071,9 +1074,17 @@ function Workspace({ onGoHome }: { onGoHome?: () => void }) {
     .join("")
     .slice(0, 2)
     .toUpperCase();
-  const flash = (s: string) => {
+  const flash = (
+    s: string,
+    opts?: { action?: "generate"; ms?: number },
+  ) => {
     setNotice(s);
-    setTimeout(() => setNotice(""), 3200);
+    setNoticeAction(opts?.action ?? null);
+    if (noticeTimer.current) clearTimeout(noticeTimer.current);
+    noticeTimer.current = setTimeout(() => {
+      setNotice("");
+      setNoticeAction(null);
+    }, opts?.ms ?? 3200);
   };
   const load = async () => {
     if (!userId || !tokenReady) return;
@@ -1188,6 +1199,22 @@ function Workspace({ onGoHome }: { onGoHome?: () => void }) {
       open(selected.id);
     }, 2500);
     return () => window.clearInterval(id);
+  }, [selected?.id, selected?.processing_status]);
+  useEffect(() => {
+    const prev = prevProcessing.current;
+    const id = selected?.id;
+    const status = selected?.processing_status;
+    if (
+      prev.id === id &&
+      prev.status === "transcribing" &&
+      status === "ready"
+    ) {
+      flash("Transcript ready — click Generate for AI summary", {
+        ms: 8000,
+        action: "generate",
+      });
+    }
+    prevProcessing.current = { id, status };
   }, [selected?.id, selected?.processing_status]);
   const refresh = async () => {
     if (selected) await open(selected.id);
@@ -2047,9 +2074,24 @@ function Workspace({ onGoHome }: { onGoHome?: () => void }) {
         </Modal>
       )}
       {notice && (
-        <div className="toast">
+        <div className="toast" role="status">
           <Check size={16} />
-          {notice}
+          <span>{notice}</span>
+          {noticeAction === "generate" && (
+            <button
+              type="button"
+              className="toast-action"
+              onClick={() => {
+                setNotice("");
+                setNoticeAction(null);
+                if (noticeTimer.current) clearTimeout(noticeTimer.current);
+                setTab("summary");
+                void generate();
+              }}
+            >
+              Generate
+            </button>
+          )}
         </div>
       )}
     </main>

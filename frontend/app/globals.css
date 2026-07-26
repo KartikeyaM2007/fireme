@@ -1635,8 +1635,13 @@ button {
 .segment {
   transition: background 0.18s;
 }
-.chapter:hover {
+.chapter:hover,
+.chapter:focus-visible {
   background: #f6f3ff;
+}
+.chapter:focus-visible {
+  outline: 2px solid #b9aaff;
+  outline-offset: 2px;
 }
 .topbar {
   height: 111px;
@@ -2092,9 +2097,28 @@ button {
   gap: 7px;
   align-items: center;
   font-size: 12px;
+  z-index: 50;
+  max-width: min(520px, calc(100vw - 32px));
 }
 .toast svg {
   color: #a994ff;
+  flex-shrink: 0;
+}
+.toast span {
+  line-height: 1.35;
+}
+.toast-action {
+  margin-left: 4px;
+  flex-shrink: 0;
+  border-radius: 5px;
+  padding: 5px 10px;
+  background: #6b4de8;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+}
+.toast-action:hover {
+  background: #7b5ef0;
 }
 .modal-backdrop {
   position: fixed;
@@ -2414,6 +2438,28 @@ html[data-theme="dark"] .player,
 html[data-theme="dark"] .ai-note,
 html[data-theme="dark"] .no-media,
 html[data-theme="dark"] .ask-panel { background:#101016; border-color:#262632; color:#eeeef4; }
+html[data-theme="dark"] .ai-note p { color:#e6e4f0; }
+html[data-theme="dark"] .ai-title small { color:#a9a5b8; }
+html[data-theme="dark"] .chapters { border-top-color:#1c1c24; }
+html[data-theme="dark"] .chapter { border-bottom-color:#1c1c24; }
+html[data-theme="dark"] .chapter time { color:#b5a4ff; }
+html[data-theme="dark"] .chapter strong { color:#f2f2f5; }
+html[data-theme="dark"] .chapter p { color:#c4c2d0; }
+html[data-theme="dark"] .chapter:hover,
+html[data-theme="dark"] .chapter:focus-visible {
+  background:#1a1630;
+}
+html[data-theme="dark"] .chapter:hover strong,
+html[data-theme="dark"] .chapter:focus-visible strong {
+  color:#efeaff;
+}
+html[data-theme="dark"] .chapter:hover p,
+html[data-theme="dark"] .chapter:focus-visible p {
+  color:#d4d1e2;
+}
+html[data-theme="dark"] .chapter:focus-visible {
+  outline-color:#8b74ff;
+}
 html[data-theme="dark"] .tabs { border-color:#1c1c24; }
 html[data-theme="dark"] .tab { color:#9a9aaa; }
 html[data-theme="dark"] .tab.active { color:#efeaff; border-bottom-color:#8b74ff; }
