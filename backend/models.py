@@ -20,6 +20,7 @@ class Meeting(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     segments: Mapped[list["TranscriptSegment"]] = relationship(cascade="all, delete-orphan", back_populates="meeting", order_by="TranscriptSegment.start_seconds")
     actions: Mapped[list["ActionItem"]] = relationship(cascade="all, delete-orphan", back_populates="meeting")
+    questions: Mapped[list["MeetingQuestion"]] = relationship(cascade="all, delete-orphan", back_populates="meeting")
 
 class TranscriptSegment(Base):
     __tablename__ = "transcript_segments"
@@ -46,3 +47,4 @@ class MeetingQuestion(Base):
     question: Mapped[str] = mapped_column(Text)
     answer: Mapped[str] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    meeting: Mapped[Meeting] = relationship(back_populates="questions")

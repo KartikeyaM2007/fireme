@@ -1256,7 +1256,7 @@ button {
 .header-actions {
   display: flex;
   gap: 10px;
-  align-items: start;
+  align-items: flex-start;
 }
 .icon-btn {
   color: #6b667f;
@@ -1305,6 +1305,9 @@ button {
   gap: 5px;
   font-weight: 600;
   font-size: 12px;
+}
+.new-btn.mobile-import {
+  display: none;
 }
 .meeting-count {
   font-size: 12px;
@@ -1773,6 +1776,9 @@ button {
   }
   .sidebar {
     display: none;
+  }
+  .new-btn.mobile-import {
+    display: flex;
   }
   .library {
     height: 45vh;

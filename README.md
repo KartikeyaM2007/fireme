@@ -52,6 +52,18 @@ Open [http://localhost:3000](http://localhost:3000). The FastAPI docs are at [ht
 
 > Do not run `npm run build` while the Next development server is running: both use `.next`, and a concurrent build can invalidate the dev server's generated CSS. Stop the dev server first, build, then start it again.
 
+## Deployment (Render + Vercel)
+
+Deploy the backend as a Render **Web Service**:
+
+- Root Directory: `backend`
+- Runtime: Docker
+- Health Check Path: `/api/health`
+- Environment: `DATABASE_URL`, `GROQ_API_KEY`, `AI_PROVIDER`, `CLERK_ISSUER`, `CLERK_JWKS_URL`, `CLERK_AUTHORIZED_PARTIES`, `CORS_ORIGINS`, and `SEED_DEMO_DATA=false`
+- Mount a persistent disk at `/data` and set `UPLOAD_DIR=/data/uploads` if recordings must survive restarts
+
+Deploy the frontend on Vercel with Root Directory `frontend`. Set `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`, and `NEXT_PUBLIC_API_URL=https://<render-service>/api`. Add the Vercel origin to both `CORS_ORIGINS` and `CLERK_AUTHORIZED_PARTIES` on Render and to the allowed origins/redirect URLs in Clerk.
+
 ## Authentication
 
 Clerk is configured in `frontend/.env.local`, which is ignored by Git. Set `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` and `CLERK_SECRET_KEY` there before starting the frontend. For a Clerk development instance, use `http://localhost:3000` rather than `127.0.0.1:3000`.
@@ -71,8 +83,12 @@ Set `CLERK_ISSUER` and `CLERK_JWKS_URL` in `backend/.env`. They are included for
 | `OPENAI_API_KEY` | — | Required only when `AI_PROVIDER=openai` |
 | `OPENAI_SUMMARY_MODEL` | `gpt-5-mini` | OpenAI summary and Q&A model |
 | `OPENAI_TRANSCRIBE_MODEL` | `gpt-4o-transcribe-diarize` | OpenAI diarized transcription model |
+| `DATABASE_URL` | local SQLite | SQLAlchemy URL; use the Supabase session pooler for deployment |
 | `CORS_ORIGINS` | local `localhost` + `127.0.0.1` origins | Allowed browser origins |
+| `CLERK_AUTHORIZED_PARTIES` | `http://localhost:3000` | Trusted Clerk token origins |
+| `SEED_DEMO_DATA` | `true` | Set `false` in production to avoid legacy unowned demo rows |
 | `UPLOAD_DIR` | `./uploads` | Local recording storage |
+| `NEXT_PUBLIC_API_URL` | `http://127.0.0.1:8000/api` | Browser-visible backend API URL |
 | `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | â€” | Frontend Clerk publishable key in `frontend/.env.local` |
 | `CLERK_SECRET_KEY` | â€” | Server-side Clerk key in `frontend/.env.local`; never commit it |
 
@@ -83,7 +99,7 @@ Next.js frontend (127.0.0.1:3000)
         │ REST
         ▼
 FastAPI API (127.0.0.1:8000)
-  ├─ SQLite: meetings, transcript segments, actions, questions
+  ├─ SQLite or PostgreSQL: meetings, transcript segments, actions, questions
   ├─ Local upload storage
   └─ Groq or OpenAI-compatible provider calls
 ```
@@ -119,4 +135,4 @@ The frontend never receives AI provider secrets.
 
 ## Production boundaries
 
-This is a local single-user assignment implementation with Clerk-authenticated, user-scoped API data. A public or multi-user deployment still needs team/workspace sharing, PostgreSQL, object storage, background jobs for long media, upload limits/scanning, rate limiting, monitoring, and provider retry handling. See [whatisleft.md](whatisleft.md) for the honest remaining-work ledger.
+This is an assignment implementation with Clerk-authenticated, user-scoped API data and SQLite/PostgreSQL support. A public multi-user deployment still needs team/workspace sharing, object storage, background jobs for long media, upload limits/scanning, rate limiting, monitoring, and provider retry handling. See [whatisleft.md](whatisleft.md) for the honest remaining-work ledger.

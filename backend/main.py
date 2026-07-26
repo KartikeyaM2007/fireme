@@ -12,7 +12,7 @@ from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, Respons
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, PlainTextResponse
 from pydantic import BaseModel, Field
-from sqlalchemy import or_, select
+from sqlalchemy import or_, select, text
 from sqlalchemy.orm import Session, selectinload
 import jwt
 from jwt import PyJWKClient
@@ -99,12 +99,21 @@ def provision_starter_meetings(db:Session,user_id:str):
     db.commit()
 
 @asynccontextmanager
-async def lifespan(app:FastAPI): Base.metadata.create_all(bind=engine);add_missing_columns();seed();yield
+async def lifespan(app:FastAPI):
+    Base.metadata.create_all(bind=engine);add_missing_columns()
+    if os.getenv("SEED_DEMO_DATA","true").lower() in {"1","true","yes"}: seed()
+    yield
 app=FastAPI(title="FireMe API",lifespan=lifespan)
-app.add_middleware(CORSMiddleware,allow_origins=[x for x in os.getenv("CORS_ORIGINS","http://localhost:3000,http://127.0.0.1:3000").split(",")],allow_credentials=True,allow_methods=["*"],allow_headers=["*"])
+app.add_middleware(CORSMiddleware,allow_origins=[x.strip() for x in os.getenv("CORS_ORIGINS","http://localhost:3000,http://127.0.0.1:3000").split(",") if x.strip()],allow_credentials=True,allow_methods=["*"],allow_headers=["*"])
 
 @app.get("/api/health")
-def health(): return {"ok":True,"ai_configured":bool(os.getenv("GROQ_API_KEY") or os.getenv("OPENAI_API_KEY")),"ai_provider":os.getenv("AI_PROVIDER", "groq" if os.getenv("GROQ_API_KEY") else "openai"),"storage":"local"}
+def health(response:Response):
+    try:
+        with engine.connect() as conn: conn.execute(text("SELECT 1"))
+        database="ok"
+    except Exception:
+        response.status_code=503;database="error"
+    return {"ok":database=="ok","database":database,"ai_configured":bool(os.getenv("GROQ_API_KEY") or os.getenv("OPENAI_API_KEY")),"ai_provider":os.getenv("AI_PROVIDER", "groq" if os.getenv("GROQ_API_KEY") else "openai"),"storage":"local"}
 @app.get("/api/meetings")
 def list_meetings(query:str="",date_from:Optional[datetime]=None,date_to:Optional[datetime]=None,sort:str="recent",user_id:str=Depends(current_user),db:Session=Depends(get_db)):
     provision_starter_meetings(db,user_id)

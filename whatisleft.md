@@ -4,9 +4,9 @@ This is intentionally not a marketing list. Every item below is either required 
 
 ## Blocking final assignment deliverables
 
-- [ ] Create a Git repository, commit source, add an appropriate `.gitignore`, create a **public GitHub repository**, and push it. The assignment explicitly requires this.
+- [x] Create a Git repository, commit source, add an appropriate `.gitignore`, create a **public GitHub repository**, and push it.
 - [ ] Deploy the frontend and backend and submit a hosted working URL. The assignment explicitly requires this.
-- [ ] Run a real Groq transcription against a representative uploaded recording. Live Groq summary generation, action extraction, and Ask FireMe have already passed.
+- [x] Run a real Groq transcription against a representative uploaded recording. Live Groq summary generation, action extraction, and Ask FireMe also passed.
 - [ ] Record a short demo/validation pass after deployment: import transcript, import recording, transcribe, generate insights, edit a transcript line, create/complete task, export notes, reload to prove persistence.
 
 ## Core assignment gaps and partials
@@ -50,7 +50,7 @@ This is intentionally not a marketing list. Every item below is either required 
 
 ### Database and storage
 
-- [ ] Move from SQLite to PostgreSQL for a deployed multi-user app.
+- [x] Add PostgreSQL support and verify the application schema and workflows against Supabase while retaining SQLite for local development.
 - [ ] Add Alembic migrations. Existing SQLite schema evolution uses a small additive helper, not a migration history.
 - [ ] Normalize participants/tags/topics if filtering, permissions, analytics, and user identities become real features.
 - [ ] Move media from local disk to S3/Cloudflare R2/GCS with signed upload/download URLs.

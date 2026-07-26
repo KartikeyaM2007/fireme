@@ -2,6 +2,8 @@ node_modules/
 .next/
 __pycache__/
 *.pyc
+*.tsbuildinfo
+.cursor/
 backend/.venv/
 backend/fireflies.db
 backend/uploads/

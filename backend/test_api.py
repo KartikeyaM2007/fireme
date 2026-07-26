@@ -1,6 +1,8 @@
 from fastapi.testclient import TestClient
 
+from database import SessionLocal
 from main import app, current_user
+from models import MeetingQuestion
 
 
 def set_user(user_id: str) -> None:
@@ -32,11 +34,17 @@ def test_meetings_are_private_and_transcript_actions_work():
 
         set_user("test_owner_a")
         assert client.delete(f"/api/actions/{action_id}").status_code == 204
+        with SessionLocal() as db:
+            db.add(MeetingQuestion(meeting_id=meeting_id, question="What changed?", answer="Access was validated."))
+            db.commit()
         assert client.delete(f"/api/meetings/{meeting_id}").status_code == 204
 
 
 def test_api_rejects_requests_without_clerk_identity():
     app.dependency_overrides.clear()
     with TestClient(app) as client:
+        health = client.get("/api/health")
+        assert health.status_code == 200
+        assert health.json()["database"] == "ok"
         response = client.get("/api/meetings")
     assert response.status_code == 401

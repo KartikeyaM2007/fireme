@@ -74,10 +74,11 @@ const fmt = (s: number) =>
 const segmentEnd = (segments: Segment[] | undefined, segment: Segment) =>
   segments?.find((item) => item.start_seconds > segment.start_seconds)
     ?.start_seconds ?? Infinity;
-let sessionToken = "";
+let getSessionToken: (() => Promise<string | null>) | null = null;
 async function request(path: string, options?: RequestInit) {
   const headers = new Headers(options?.headers);
-  if (sessionToken) headers.set("Authorization", `Bearer ${sessionToken}`);
+  const token = await getSessionToken?.();
+  if (token) headers.set("Authorization", `Bearer ${token}`);
   const r = await fetch(`${API}${path}`, { ...options, headers });
   if (!r.ok)
     throw new Error(
@@ -121,10 +122,8 @@ function Workspace() {
     if (!userId || !tokenReady) return;
     try {
       const params = new URLSearchParams({ query: q, sort });
-      if (dateFrom)
-        params.set("date_from", new Date(`${dateFrom}T00:00:00`).toISOString());
-      if (dateTo)
-        params.set("date_to", new Date(`${dateTo}T23:59:59`).toISOString());
+      if (dateFrom) params.set("date_from", `${dateFrom}T00:00:00`);
+      if (dateTo) params.set("date_to", `${dateTo}T23:59:59.999`);
       const data = await (await request(`/meetings?${params}`)).json();
       setMeetings(data);
       if (!selected && data[0]) open(data[0].id);
@@ -144,15 +143,17 @@ function Workspace() {
   useEffect(() => {
     let active = true;
     setTokenReady(false);
-    if (userId)
+    if (userId) {
+      getSessionToken = getToken;
       getToken().then((token) => {
         if (active) {
-          sessionToken = token || "";
           setTokenReady(Boolean(token));
         }
       });
+    }
     return () => {
       active = false;
+      getSessionToken = null;
     };
   }, [getToken, userId]);
   useEffect(() => {
@@ -309,10 +310,19 @@ function Workspace() {
             <h1>My meetings</h1>
             <p>Your searchable meeting library.</p>
           </div>
-          <button className="new-btn" onClick={() => setModal("create")}>
-            <Plus size={17} />
-            New meeting
-          </button>
+          <div className="header-actions">
+            <button
+              className="new-btn mobile-import"
+              onClick={() => setModal("import")}
+            >
+              <Upload size={16} />
+              Import
+            </button>
+            <button className="new-btn" onClick={() => setModal("create")}>
+              <Plus size={17} />
+              New meeting
+            </button>
+          </div>
         </header>
         <div className="library-controls">
           <div className="searchbox">

@@ -3,8 +3,12 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import Home from "./page";
 
+const authMocks = vi.hoisted(() => ({
+  getToken: vi.fn(async () => "session-token"),
+}));
+
 vi.mock("@clerk/nextjs", () => ({
-  useAuth: () => ({ isLoaded: true, userId: "user_test", getToken: async () => "session-token" }),
+  useAuth: () => ({ isLoaded: true, userId: "user_test", getToken: authMocks.getToken }),
   Show: ({ children }: { children: unknown }) => children,
   SignInButton: ({ children }: { children: unknown }) => children,
   SignUpButton: ({ children }: { children: unknown }) => children,
@@ -15,6 +19,7 @@ const meeting = { id: 88, title: "Planning", occurred_at: "2026-07-20T09:00:00",
 
 describe("Workspace", () => {
   beforeEach(() => {
+    authMocks.getToken.mockClear();
     vi.stubGlobal("fetch", vi.fn(async (url: string) => ({ ok: true, json: async () => url.includes("/meetings?") ? [meeting] : meeting })));
   });
 
@@ -26,8 +31,9 @@ describe("Workspace", () => {
     await waitFor(() => expect(fetch).toHaveBeenCalled());
     const calls = vi.mocked(fetch).mock.calls;
     const rangeRequest = calls.map(([url]) => String(url)).find((url) => url.includes("date_from") && url.includes("date_to"));
-    expect(rangeRequest).toContain("date_from=");
-    expect(rangeRequest).toContain("date_to=");
+    expect(decodeURIComponent(rangeRequest || "")).toContain("date_from=2026-07-01T00:00:00");
+    expect(decodeURIComponent(rangeRequest || "")).toContain("date_to=2026-07-31T23:59:59.999");
     expect(vi.mocked(fetch).mock.calls.some(([, options]) => new Headers(options?.headers).get("Authorization") === "Bearer session-token")).toBe(true);
+    expect(authMocks.getToken.mock.calls.length).toBeGreaterThan(1);
   });
 });
