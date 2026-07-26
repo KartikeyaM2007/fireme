@@ -61,7 +61,7 @@ export function ColdStartNote({
       title: "API still waking",
       body: "If this is your first visit after idle, wait ~30s and refresh. Render free dynos sleep when unused.",
     },
-  }[phase === "hidden" ? "warming" : phase];
+  }[phase];
 
   return (
     <div
