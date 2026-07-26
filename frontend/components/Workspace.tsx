@@ -26,15 +26,18 @@ import {
   FileAudio,
   FileText,
   Highlighter,
+  Link2,
   LoaderCircle,
   Menu,
   MessageSquare,
   Moon,
   Pencil,
+  Pin,
   Play,
   Plus,
   Search,
   Settings,
+  Share2,
   ShieldCheck,
   Sparkles,
   Sun,
@@ -359,6 +362,7 @@ function Summary({
             )}
           </div>
         </section>
+        <TalkTime segments={meeting.segments} />
         <section className="chapters">
           <h3>Chapters</h3>
           {meeting.chapters.length ? (
@@ -706,7 +710,7 @@ function SegmentForm({
         method: segment ? "PATCH" : "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          speaker: speaker || "Unknown",
+          speaker: speaker || "Speaker 1",
           start_seconds: +time,
           content,
         }),
@@ -895,6 +899,88 @@ function highlight(text: string, q: string) {
   );
 }
 
+function speakerHue(name: string) {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) % 360;
+  return h;
+}
+
+function SpeakerAvatar({ name, size = 28 }: { name: string; size?: number }) {
+  const hue = speakerHue(name || "?");
+  const initials = (name || "?")
+    .split(/\s+/)
+    .map((p) => p[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+  return (
+    <span
+      className="speaker-avatar"
+      style={{
+        width: size,
+        height: size,
+        fontSize: size < 24 ? 9 : 11,
+        background: `hsl(${hue} 55% 42%)`,
+      }}
+      aria-hidden
+    >
+      {initials}
+    </span>
+  );
+}
+
+function TalkTime({ segments }: { segments?: Segment[] }) {
+  const rows = useMemo(() => {
+    const list = segments || [];
+    if (!list.length) return [] as { speaker: string; seconds: number; pct: number }[];
+    const totals = new Map<string, number>();
+    for (let i = 0; i < list.length; i++) {
+      const s = list[i];
+      const next = list[i + 1];
+      const dur = Math.max(
+        4,
+        (next ? next.start_seconds : s.start_seconds + 12) - s.start_seconds,
+      );
+      totals.set(s.speaker, (totals.get(s.speaker) || 0) + dur);
+    }
+    const sum = Array.from(totals.values()).reduce((a, b) => a + b, 0) || 1;
+    return Array.from(totals.entries())
+      .map(([speaker, seconds]) => ({
+        speaker,
+        seconds,
+        pct: (seconds / sum) * 100,
+      }))
+      .sort((a, b) => b.seconds - a.seconds);
+  }, [segments]);
+  if (!rows.length) return null;
+  return (
+    <section className="talk-time">
+      <h3>Talk time</h3>
+      <div className="talk-bars">
+        {rows.map((r) => (
+          <div className="talk-row" key={r.speaker}>
+            <SpeakerAvatar name={r.speaker} size={22} />
+            <div className="talk-meta">
+              <div className="talk-label">
+                <strong>{r.speaker}</strong>
+                <span>{fmt(r.seconds)}</span>
+              </div>
+              <div className="talk-track">
+                <i
+                  style={{
+                    width: `${Math.max(4, r.pct)}%`,
+                    background: `hsl(${speakerHue(r.speaker)} 55% 48%)`,
+                  }}
+                />
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function Workspace() {
   const { getToken, isLoaded, userId } = useAuth();
   const { user } = useUser();
@@ -939,7 +1025,12 @@ function Workspace() {
     [notice, setNotice] = useState(""),
     [peopleOptions, setPeopleOptions] = useState<string[]>([]),
     [topicOptions, setTopicOptions] = useState<string[]>([]),
-    [apiNotice, setApiNotice] = useState("");
+    [apiNotice, setApiNotice] = useState(""),
+    [listLoading, setListLoading] = useState(true),
+    [pinnedId, setPinnedId] = useState<number | null>(null),
+    [mobilePane, setMobilePane] = useState<"list" | "detail">("list"),
+    [mobileNav, setMobileNav] = useState(false),
+    linesRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const saved = window.localStorage.getItem("fireme-theme");
     const next = saved === "dark";
@@ -950,7 +1041,7 @@ function Workspace() {
     bindRequestTiming({
       onSlow: () =>
         setApiNotice(
-          "API is waking up (Render free tier). First request can take 30–60s — please wait.",
+          "Waking API… Render free tier can take 30–60s on first request.",
         ),
       onSettled: (_ms, ok) => {
         if (ok) setApiNotice("");
@@ -961,7 +1052,7 @@ function Workspace() {
   useEffect(() => {
     if (!tokenReady) return;
     let cancelled = false;
-    setApiNotice("Checking API health…");
+    setApiNotice("Waking API… checking health");
     warmApi().then((status) => {
       if (cancelled) return;
       if (status === "ok") setApiNotice("");
@@ -978,6 +1069,10 @@ function Workspace() {
       cancelled = true;
     };
   }, [tokenReady]);
+  useEffect(() => {
+    const raw = window.localStorage.getItem("fireme-pin");
+    if (raw) setPinnedId(Number(raw) || null);
+  }, []);
   const toggleTheme = () => {
     const next = !dark;
     setDark(next);
@@ -998,6 +1093,7 @@ function Workspace() {
   };
   const load = async () => {
     if (!userId || !tokenReady) return;
+    setListLoading(true);
     try {
       const params = new URLSearchParams({ query: q, sort });
       if (participant) params.set("participant", participant);
@@ -1016,9 +1112,25 @@ function Workspace() {
         data.forEach((m) => m.topics.forEach((t) => names.add(t)));
         return Array.from(names).sort();
       });
-      if (!selected && data[0]) open(data[0].id);
+      if (!selected && data.length) {
+        const paramsUrl = new URLSearchParams(window.location.search);
+        const deepId = Number(paramsUrl.get("meeting") || 0);
+        const pin =
+          (deepId && data.find((m) => m.id === deepId)?.id) ||
+          pinnedId ||
+          data.find((m) => m.title === "Product roadmap sync")?.id ||
+          data[0].id;
+        await open(pin);
+        const t = Number(paramsUrl.get("t") || 0);
+        if (t > 0) {
+          setSeek(t);
+          setTab("transcript");
+        }
+      }
     } catch (e) {
       flash(e instanceof Error ? e.message : "Could not load meetings");
+    } finally {
+      setListLoading(false);
     }
   };
   const open = async (id: number) => {
@@ -1027,8 +1139,43 @@ function Workspace() {
       setSeek(0);
       setClipPlay(null);
       setFind("");
+      setMobilePane("detail");
+      const url = new URL(window.location.href);
+      url.searchParams.set("meeting", String(id));
+      url.searchParams.delete("t");
+      window.history.replaceState({}, "", url.toString());
     } catch (e) {
       flash(e instanceof Error ? e.message : "Could not open meeting");
+    }
+  };
+  const togglePin = (id: number) => {
+    const next = pinnedId === id ? null : id;
+    setPinnedId(next);
+    if (next) window.localStorage.setItem("fireme-pin", String(next));
+    else window.localStorage.removeItem("fireme-pin");
+    flash(next ? "Pinned for quick demo" : "Unpinned");
+  };
+  const copyTimestampLink = async (seconds: number) => {
+    if (!selected) return;
+    const url = new URL(window.location.href);
+    url.searchParams.set("meeting", String(selected.id));
+    url.searchParams.set("t", String(seconds));
+    try {
+      await navigator.clipboard.writeText(url.toString());
+      flash(`Copied link at ${fmt(seconds)}`);
+    } catch {
+      flash("Could not copy link");
+    }
+  };
+  const shareMeeting = async () => {
+    if (!selected) return;
+    const url = new URL(window.location.href);
+    url.searchParams.set("meeting", String(selected.id));
+    try {
+      await navigator.clipboard.writeText(url.toString());
+      flash("Meeting link copied");
+    } catch {
+      flash("Could not copy link");
     }
   };
   useEffect(() => {
@@ -1069,6 +1216,19 @@ function Workspace() {
       ) || [],
     [selected, find],
   );
+  const orderedMeetings = useMemo(() => {
+    if (!pinnedId) return meetings;
+    return [...meetings].sort((a, b) => {
+      if (a.id === pinnedId) return -1;
+      if (b.id === pinnedId) return 1;
+      return 0;
+    });
+  }, [meetings, pinnedId]);
+  useEffect(() => {
+    if (!find.trim()) return;
+    const hit = linesRef.current?.querySelector(".segment.hit");
+    hit?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [find, filtered]);
   async function generate() {
     if (!selected) return;
     setBusy(true);
@@ -1214,10 +1374,17 @@ function Workspace() {
           </button>
         </div>
       )}
-      <main className="app-shell">
-      <aside className="sidebar">
+      <main className={`app-shell ${mobilePane === "detail" ? "show-detail" : "show-list"}`}>
+      <aside className={`sidebar ${mobileNav ? "open" : ""}`}>
         <div className="brand">
           <span className="brand-mark">✦</span>fireme<span>.ai</span>
+          <button
+            className="mobile-only sidebar-close"
+            aria-label="Close menu"
+            onClick={() => setMobileNav(false)}
+          >
+            <X size={18} />
+          </button>
         </div>
         <button className="record-btn" onClick={() => setModal("import")}>
           <Upload size={16} /> Import recording or transcript
@@ -1257,9 +1424,18 @@ function Workspace() {
       </aside>
       <section className="library">
         <header className="topbar">
-          <div>
-            <h1>My meetings</h1>
-            <p>Search titles, people, topics, and transcript text.</p>
+          <div className="topbar-lead">
+            <button
+              className="mobile-only icon-btn"
+              aria-label="Open menu"
+              onClick={() => setMobileNav(true)}
+            >
+              <Menu size={18} />
+            </button>
+            <div>
+              <h1>My meetings</h1>
+              <p>Search titles, people, topics, and transcript text.</p>
+            </div>
           </div>
           <div className="header-actions">
             <button
@@ -1334,19 +1510,35 @@ function Workspace() {
             <option value="oldest">Oldest first</option>
           </select>
         </div>
-        <div className="meeting-count">{meetings.length} meetings</div>
+        <div className="meeting-count">
+          {listLoading ? "Loading meetings…" : `${meetings.length} meetings`}
+        </div>
         <div className="meeting-list">
-          {meetings.map((m) => (
+          {listLoading &&
+            Array.from({ length: 4 }).map((_, i) => (
+              <div className="meeting-row skeleton" key={`sk-${i}`} aria-hidden>
+                <div className="meeting-icon sk-block" />
+                <div className="meeting-main">
+                  <strong className="sk-line" />
+                  <div className="sk-line short" />
+                </div>
+              </div>
+            ))}
+          {!listLoading &&
+            orderedMeetings.map((m) => (
             <button
               onClick={() => open(m.id)}
               key={m.id}
-              className={`meeting-row ${selected?.id === m.id ? "selected" : ""}`}
+              className={`meeting-row ${selected?.id === m.id ? "selected" : ""} ${pinnedId === m.id ? "pinned" : ""}`}
             >
               <div className="meeting-icon">
                 {m.media_url ? <FileAudio size={19} /> : <FileText size={19} />}
               </div>
               <div className="meeting-main">
-                <strong>{m.title}</strong>
+                <strong>
+                  {pinnedId === m.id && <Pin size={12} className="pin-mark" />}
+                  {m.title}
+                </strong>
                 <div>
                   {date(m.occurred_at)} <i>•</i>{" "}
                   {m.duration_seconds
@@ -1361,6 +1553,13 @@ function Workspace() {
               </span>
             </button>
           ))}
+          {!listLoading && !meetings.length && (
+            <p className="muted list-empty">
+              {apiNotice
+                ? "Waiting for API… meetings will appear when the server wakes."
+                : "No meetings yet — create or import one."}
+            </p>
+          )}
         </div>
       </section>
       <section className="detail">
@@ -1368,9 +1567,34 @@ function Workspace() {
           <>
             <header className="detail-head">
               <div className="crumb">
-                My meetings <span>/</span> {selected.title}
+                <button
+                  type="button"
+                  className="crumb-link"
+                  onClick={() => setMobilePane("list")}
+                >
+                  My meetings
+                </button>{" "}
+                <span>/</span> {selected.title}
+                {selected.media_url && (
+                  <span className="rec-chip" title="Recording attached">
+                    REC
+                  </span>
+                )}
               </div>
               <div className="detail-actions">
+                <button
+                  type="button"
+                  className={pinnedId === selected.id ? "active-pin" : ""}
+                  onClick={() => togglePin(selected.id)}
+                  title="Pin for demo"
+                >
+                  <Pin size={15} />
+                  {pinnedId === selected.id ? "Pinned" : "Pin"}
+                </button>
+                <button type="button" onClick={shareMeeting} title="Copy link">
+                  <Share2 size={15} />
+                  Share
+                </button>
                 <button onClick={() => setModal("edit")}>Edit</button>
                 <button onClick={() => setModal("export")}>
                   <Download size={15} />
@@ -1389,6 +1613,16 @@ function Workspace() {
                 <Clock3 size={15} />
                 {date(selected.occurred_at)} <i>•</i>
                 <Users size={15} />
+                <span className="avatar-row">
+                  {(selected.participants.length
+                    ? selected.participants
+                    : ["Guest"]
+                  )
+                    .slice(0, 5)
+                    .map((p) => (
+                      <SpeakerAvatar key={p} name={p} size={22} />
+                    ))}
+                </span>
                 {selected.participants.join(", ") || "No participants"}
               </p>
             </div>
@@ -1445,110 +1679,133 @@ function Workspace() {
                 />
               )}{" "}
               {tab === "transcript" && (
-                <section className="transcript-full">
-                  <div className="transcript-head">
-                    <div>
-                      <h3>Transcript</h3>
-                      <span>{selected.segments?.length || 0} segments</span>
-                    </div>
-                    <div className="transcript-tools">
-                      <div className="mini-search">
-                        <Search size={16} />
-                        <input
-                          value={find}
-                          onChange={(e) => setFind(e.target.value)}
-                          placeholder="Search transcript"
-                        />
-                        {find && (
-                          <button onClick={() => setFind("")}>
-                            <X size={14} />
-                          </button>
-                        )}
-                      </div>
-                      <button
-                        className="new-btn"
-                        onClick={() => setModal("paste")}
-                      >
-                        <FileText size={15} />
-                        Paste transcript
-                      </button>
-                      <button
-                        className="new-btn"
-                        onClick={() => {
-                          setEditing(null);
-                          setModal("segment");
-                        }}
-                      >
-                        <Plus size={15} />
-                        Add line
-                      </button>
-                    </div>
-                  </div>
-                  <div className="transcript-lines">
-                    {filtered.map((s) => (
-                      <div
-                        className={`segment ${seek >= s.start_seconds && seek < segmentEnd(selected.segments, s) ? "playing" : ""}`}
-                        key={s.id}
-                      >
-                        <button
-                          className="segment-time"
-                          onClick={() => setSeek(s.start_seconds)}
-                        >
-                          {fmt(s.start_seconds)}
-                          <Play size={12} />
+                <section className="transcript-full transcript-split">
+                  <aside className="transcript-side">
+                    <label className="side-search-label">
+                      <Search size={14} /> Search transcript
+                    </label>
+                    <div className="mini-search side">
+                      <input
+                        value={find}
+                        onChange={(e) => setFind(e.target.value)}
+                        placeholder="Find a moment…"
+                      />
+                      {find && (
+                        <button onClick={() => setFind("")}>
+                          <X size={14} />
                         </button>
-                        <div className="segment-copy">
-                          <strong>{s.speaker}</strong>
-                          <p>{highlight(s.content, find)}</p>
-                        </div>
-                        <div className="line-actions">
-                          <button
-                            title="Highlight"
-                            onClick={() => {
-                              setNoteSegment(s);
-                              setNoteKind("highlight");
-                              setNoteBody(s.content);
-                              setModal("note");
-                            }}
-                          >
-                            <Highlighter size={14} />
-                          </button>
-                          <button
-                            title="Comment"
-                            onClick={() => {
-                              setNoteSegment(s);
-                              setNoteKind("comment");
-                              setNoteBody("");
-                              setModal("note");
-                            }}
-                          >
-                            <MessageSquare size={14} />
-                          </button>
-                          <button
-                            title="Soundbite"
-                            onClick={() => {
-                              setNoteSegment(s);
-                              setNoteKind("soundbite");
-                              setNoteBody(s.content.slice(0, 120));
-                              setModal("note");
-                            }}
-                          >
-                            <Bookmark size={14} />
-                          </button>
-                          <button
-                            onClick={() => {
-                              setEditing(s);
-                              setModal("segment");
-                            }}
-                          >
-                            <Pencil size={14} />
-                          </button>
-                          <button onClick={() => removeSegment(s)}>
-                            <Trash2 size={14} />
-                          </button>
-                        </div>
+                      )}
+                    </div>
+                    {find && (
+                      <p className="muted side-hits">
+                        {filtered.length} match
+                        {filtered.length === 1 ? "" : "es"}
+                      </p>
+                    )}
+                    <button
+                      className="new-btn"
+                      onClick={() => setModal("paste")}
+                    >
+                      <FileText size={15} />
+                      Paste transcript
+                    </button>
+                    <button
+                      className="new-btn"
+                      onClick={() => {
+                        setEditing(null);
+                        setModal("segment");
+                      }}
+                    >
+                      <Plus size={15} />
+                      Add line
+                    </button>
+                  </aside>
+                  <div className="transcript-main">
+                    <div className="transcript-head">
+                      <div>
+                        <h3>Transcript</h3>
+                        <span>{selected.segments?.length || 0} segments</span>
                       </div>
-                    ))}
+                    </div>
+                    <div className="transcript-lines" ref={linesRef}>
+                      {filtered.map((s, idx) => {
+                        const isHit = !!find.trim() && idx === 0;
+                        return (
+                        <div
+                          className={`segment ${seek >= s.start_seconds && seek < segmentEnd(selected.segments, s) ? "playing" : ""} ${isHit ? "hit" : ""}`}
+                          key={s.id}
+                          data-seg={s.id}
+                        >
+                          <button
+                            className="segment-time"
+                            onClick={() => setSeek(s.start_seconds)}
+                          >
+                            {fmt(s.start_seconds)}
+                            <Play size={12} />
+                          </button>
+                          <div className="segment-copy">
+                            <div className="speaker-line">
+                              <SpeakerAvatar name={s.speaker} size={26} />
+                              <strong>{s.speaker}</strong>
+                            </div>
+                            <p>{highlight(s.content, find)}</p>
+                          </div>
+                          <div className="line-actions">
+                            <button
+                              title="Copy timestamp link"
+                              onClick={() => copyTimestampLink(s.start_seconds)}
+                            >
+                              <Link2 size={14} />
+                            </button>
+                            <button
+                              title="Highlight"
+                              onClick={() => {
+                                setNoteSegment(s);
+                                setNoteKind("highlight");
+                                setNoteBody(s.content);
+                                setModal("note");
+                              }}
+                            >
+                              <Highlighter size={14} />
+                            </button>
+                            <button
+                              title="Comment"
+                              onClick={() => {
+                                setNoteSegment(s);
+                                setNoteKind("comment");
+                                setNoteBody("");
+                                setModal("note");
+                              }}
+                            >
+                              <MessageSquare size={14} />
+                            </button>
+                            <button
+                              title="Soundbite"
+                              onClick={() => {
+                                setNoteSegment(s);
+                                setNoteKind("soundbite");
+                                setNoteBody(s.content.slice(0, 120));
+                                setModal("note");
+                              }}
+                            >
+                              <Bookmark size={14} />
+                            </button>
+                            <button
+                              onClick={() => {
+                                setEditing(s);
+                                setModal("segment");
+                              }}
+                            >
+                              <Pencil size={14} />
+                            </button>
+                            <button onClick={() => removeSegment(s)}>
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        </div>
+                      );
+                      })}
+                    </div>
                   </div>
                 </section>
               )}

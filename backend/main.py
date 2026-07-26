@@ -148,7 +148,11 @@ def list_meetings(
 
 @app.get("/api/meetings/{meeting_id}")
 def get_meeting(meeting_id: int, user_id: str = Depends(current_user), db: Session = Depends(get_db)):
-    return serialise(get_meeting_or_404(meeting_id, user_id, db, True), True)
+    from services import repair_meeting_speakers
+
+    meeting = get_meeting_or_404(meeting_id, user_id, db, True)
+    repair_meeting_speakers(meeting, db)
+    return serialise(meeting, True)
 
 
 @app.post("/api/meetings", status_code=201)

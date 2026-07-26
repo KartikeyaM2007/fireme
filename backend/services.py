@@ -37,12 +37,59 @@ def timestamp_to_seconds(value: str) -> int:
     except ValueError:
         return 0
 
+def normalize_speaker_labels(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Map Unknown / SPEAKER_00 style labels to Speaker 1, Speaker 2, … Keep real names."""
+    mapping: dict[str, str] = {}
+    next_n = 1
+    for row in rows:
+        raw = str(row.get("speaker") or "").strip() or "Unknown"
+        low = raw.lower().replace("-", "_").replace(" ", "_")
+        is_generic = low in {"unknown", "none", "null", "speaker"} or bool(
+            re.match(r"^(speaker|spk)_?\d+$", low)
+        )
+        if is_generic:
+            key = low if low not in {"unknown", "none", "null", "speaker"} else "__unknown__"
+            if key not in mapping:
+                mapping[key] = f"Speaker {next_n}"
+                next_n += 1
+            row["speaker"] = mapping[key]
+        else:
+            row["speaker"] = raw
+    return rows
+
+
+def repair_meeting_speakers(meeting: Any, db: Any) -> bool:
+    """Persist Speaker N labels when segments are still Unknown (e.g. older Groq STT)."""
+    segments = list(getattr(meeting, "segments", []) or [])
+    if not segments:
+        return False
+    labeled = normalize_speaker_labels(
+        [
+            {
+                "speaker": s.speaker,
+                "start_seconds": s.start_seconds,
+                "content": s.content,
+            }
+            for s in segments
+        ]
+    )
+    changed = False
+    for seg, lab in zip(segments, labeled):
+        if seg.speaker != lab["speaker"]:
+            seg.speaker = lab["speaker"]
+            changed = True
+    if changed:
+        db.commit()
+    return changed
+
+
 def parse_transcript(raw: str, extension: str) -> list[dict[str, Any]]:
     if extension == ".json":
         payload = json.loads(raw)
         rows = payload.get("segments", payload) if isinstance(payload, dict) else payload
         if not isinstance(rows, list): raise HTTPException(422, "JSON transcript must be a list or have a segments list")
-        return [{"speaker": str(x.get("speaker", "Unknown")), "start_seconds": int(x.get("start_seconds", x.get("start", 0))), "content": str(x.get("content", x.get("text", ""))).strip()} for x in rows if str(x.get("content", x.get("text", ""))).strip()]
+        parsed = [{"speaker": str(x.get("speaker", "Unknown")), "start_seconds": int(x.get("start_seconds", x.get("start", 0))), "content": str(x.get("content", x.get("text", ""))).strip()} for x in rows if str(x.get("content", x.get("text", ""))).strip()]
+        return normalize_speaker_labels(parsed)
     if extension in {".vtt", ".srt"}:
         blocks = re.split(r"\n\s*\n", raw.replace("\r", ""))
         output=[]
@@ -55,7 +102,7 @@ def parse_transcript(raw: str, extension: str) -> list[dict[str, Any]]:
             match=re.match(r"(?:<v\s+([^>]+)>|([^:]{1,40}):)\s*(.*)", text)
             if match: speaker=(match.group(1) or match.group(2) or "Unknown").strip(); text=match.group(3)
             if text: output.append({"speaker":speaker,"start_seconds":timestamp_to_seconds(time_line.split("-->")[0]),"content":re.sub(r"<[^>]+>","",text).strip()})
-        return output
+        return normalize_speaker_labels(output)
     output=[]
     for index, line in enumerate(raw.splitlines()):
         line=line.strip()
@@ -63,7 +110,7 @@ def parse_transcript(raw: str, extension: str) -> list[dict[str, Any]]:
         match=re.match(r"(?:\[?(\d{1,2}:\d{2}(?::\d{2})?)\]?\s*)?(?:([^:]{1,40}):\s*)?(.*)", line)
         content=match.group(3).strip() if match else line
         if content: output.append({"speaker":(match.group(2) or "Unknown").strip(),"start_seconds":timestamp_to_seconds(match.group(1) or str(index*30)),"content":content})
-    return output
+    return normalize_speaker_labels(output)
 
 def transcript_text(segments: list[Any]) -> str:
     return "\n".join(f"[{s.start_seconds//60:02d}:{s.start_seconds%60:02d}] {s.speaker}: {s.content}" for s in segments)
@@ -193,6 +240,10 @@ def transcribe_media(path: Path) -> list[dict[str, Any]]:
                     }
                 )
         if output:
-            return output
+            return normalize_speaker_labels(output)
     text = getattr(result, "text", None) or (result.get("text", "") if isinstance(result, dict) else "")
-    return [{"speaker": "Unknown", "start_seconds": 0, "content": text.strip()}] if text.strip() else []
+    if text.strip():
+        return normalize_speaker_labels(
+            [{"speaker": "Unknown", "start_seconds": 0, "content": text.strip()}]
+        )
+    return []

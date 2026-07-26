@@ -2160,41 +2160,220 @@ button {
     display: none;
   }
 }
-@media (max-width: 800px) {
-  .app-shell {
-    display: block;
+.speaker-avatar {
+  display: inline-grid;
+  place-items: center;
+  border-radius: 999px;
+  color: #fff;
+  font-weight: 700;
+  flex-shrink: 0;
+  letter-spacing: -0.02em;
+}
+.speaker-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.avatar-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0 6px 0 2px;
+  vertical-align: middle;
+}
+.avatar-row .speaker-avatar {
+  box-shadow: 0 0 0 2px #0b0b0f;
+  margin-left: -4px;
+}
+.avatar-row .speaker-avatar:first-child {
+  margin-left: 0;
+}
+.rec-chip {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 10px;
+  padding: 2px 7px;
+  border-radius: 4px;
+  background: #e11d48;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  vertical-align: middle;
+}
+.crumb-link {
+  color: inherit;
+  opacity: 0.75;
+}
+.crumb-link:hover {
+  opacity: 1;
+  text-decoration: underline;
+}
+.detail-actions .active-pin {
+  color: #7b5cff;
+  background: #efe9ff;
+  border-radius: 8px;
+  padding: 6px 10px;
+}
+.pin-mark {
+  display: inline;
+  margin-right: 4px;
+  color: #7b5cff;
+  vertical-align: -1px;
+}
+.meeting-row.pinned {
+  border-left: 3px solid #7b5cff;
+}
+.meeting-row.skeleton {
+  pointer-events: none;
+  opacity: 0.7;
+}
+.sk-block,
+.sk-line {
+  display: block;
+  background: linear-gradient(90deg, #eceaf3, #f7f6fb, #eceaf3);
+  background-size: 200% 100%;
+  animation: sk-shine 1.2s linear infinite;
+  border-radius: 6px;
+}
+.sk-block {
+  width: 36px;
+  height: 36px;
+}
+.sk-line {
+  height: 10px;
+  width: 70%;
+  margin: 6px 0;
+}
+.sk-line.short {
+  width: 44%;
+}
+@keyframes sk-shine {
+  to {
+    background-position: -200% 0;
   }
-  .sidebar {
-    display: none;
-  }
-  .new-btn.mobile-import {
-    display: flex;
-  }
-  .library {
-    height: 45vh;
-    border-bottom: 1px solid #e8e7ee;
-  }
-  .detail {
-    min-height: 55vh;
-  }
-  .meeting-list {
-    height: calc(45vh - 195px);
-  }
-  .detail-content {
-    padding: 20px;
-  }
-  .player,
-  .detail-title {
-    margin-left: 20px;
-    margin-right: 20px;
-    padding-left: 0;
-    padding-right: 0;
-  }
-  .detail-head,
-  .tabs {
-    padding-left: 20px;
-    padding-right: 20px;
-  }
+}
+.list-empty {
+  padding: 24px 16px;
+}
+.talk-time {
+  margin: 18px 0 8px;
+}
+.talk-time h3 {
+  margin: 0 0 12px;
+  font-size: 13px;
+}
+.talk-bars {
+  display: grid;
+  gap: 10px;
+}
+.talk-row {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 10px;
+  align-items: center;
+}
+.talk-label {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 12px;
+  margin-bottom: 4px;
+}
+.talk-label span {
+  color: #8b849f;
+}
+.talk-track {
+  height: 8px;
+  border-radius: 999px;
+  background: #eceaf3;
+  overflow: hidden;
+}
+.talk-track i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+}
+.transcript-split {
+  display: grid;
+  grid-template-columns: 200px 1fr;
+  gap: 18px;
+  align-items: start;
+}
+.transcript-side {
+  position: sticky;
+  top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid #ebe7f5;
+  border-radius: 12px;
+  background: #fbfaff;
+}
+.side-search-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #6f6a84;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.mini-search.side {
+  width: 100%;
+}
+.mini-search.side input {
+  width: 100%;
+}
+.side-hits {
+  margin: 0;
+  font-size: 12px;
+}
+.segment.hit {
+  outline: 1px solid #b9a6ff;
+  background: #f4f0ff;
+}
+.mobile-only {
+  display: none;
+}
+.topbar-lead {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+.icon-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  border: 1px solid #e4e0ef;
+  display: inline-grid;
+  place-items: center;
+}
+html[data-theme="dark"] .talk-track {
+  background: #1c1c24;
+}
+html[data-theme="dark"] .transcript-side {
+  background: #101016;
+  border-color: #262632;
+}
+html[data-theme="dark"] .segment.hit {
+  background: #16122a;
+  outline-color: #6b57c8;
+}
+html[data-theme="dark"] .sk-block,
+html[data-theme="dark"] .sk-line {
+  background: linear-gradient(90deg, #15151c, #1c1c24, #15151c);
+  background-size: 200% 100%;
+}
+html[data-theme="dark"] .detail-actions .active-pin {
+  background: #1a1630;
+  color: #cbbfff;
+}
+html[data-theme="dark"] .avatar-row .speaker-avatar {
+  box-shadow: 0 0 0 2px #0b0b0f;
 }
 
 html[data-theme="dark"] body { background:#050508; color:#f2f2f5; }
@@ -2304,4 +2483,78 @@ html[data-theme="dark"] .clip-card.soundbite { background:#12101a; border-color:
 html[data-theme="dark"] .clip-card.comment { background:#0e1614; border-color:#2a4a40; }
 html[data-theme="dark"] .ask-bubble.bot { background:#121218; border-color:#2a2a35; color:#e8e8ef; }
 html[data-theme="dark"] .ask-panel { background:#0b0b0f; border-color:#1c1c24; }
+
+@media (max-width: 900px) {
+  .transcript-split {
+    grid-template-columns: 1fr;
+  }
+  .transcript-side {
+    position: static;
+  }
+}
+@media (max-width: 800px) {
+  .mobile-only {
+    display: inline-grid;
+  }
+  .app-shell {
+    display: block;
+  }
+  .sidebar {
+    display: none;
+    position: fixed;
+    inset: 0 auto 0 0;
+    width: min(280px, 86vw);
+    z-index: 50;
+    box-shadow: 20px 0 40px rgba(0, 0, 0, 0.35);
+  }
+  .sidebar.open {
+    display: flex;
+  }
+  .sidebar-close {
+    margin-left: auto;
+  }
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .new-btn.mobile-import {
+    display: flex;
+  }
+  .app-shell.show-list .detail {
+    display: none;
+  }
+  .app-shell.show-detail .library {
+    display: none;
+  }
+  .library,
+  .detail {
+    min-height: 100vh;
+    height: auto;
+  }
+  .meeting-list {
+    height: auto;
+    max-height: none;
+    padding-bottom: 40px;
+  }
+  .detail-content {
+    padding: 16px;
+  }
+  .player,
+  .detail-title {
+    margin-left: 16px;
+    margin-right: 16px;
+    padding-left: 0;
+    padding-right: 0;
+  }
+  .detail-head,
+  .tabs {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+  .detail-actions {
+    flex-wrap: wrap;
+  }
+}
+
 

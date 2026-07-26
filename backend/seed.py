@@ -2,10 +2,10 @@ import json
 from datetime import datetime, timedelta
 
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from database import SessionLocal
-from models import ActionItem, Meeting, TranscriptSegment
+from models import ActionItem, Meeting, MeetingQuestion, SegmentNote, TranscriptSegment
 
 
 def seed() -> None:
@@ -53,6 +53,58 @@ def seed() -> None:
     db.close()
 
 
+def _attach_demo_extras(meeting: Meeting) -> None:
+    """Killer 3-minute demo: soundbite + Ask history on Product roadmap sync."""
+    if meeting.title != "Product roadmap sync":
+        return
+    if not meeting.notes:
+        meeting.notes.append(
+            SegmentNote(
+                kind="soundbite",
+                body="Analytics is the most repeated request across segments.",
+                start_seconds=38,
+                end_seconds=68,
+            )
+        )
+    if not meeting.questions:
+        meeting.questions.append(
+            MeetingQuestion(
+                question="What did we decide about analytics?",
+                answer=(
+                    "The team decided to make analytics the anchor for the Q3 release [02:21], "
+                    "while keeping activation improvements in the same milestone [02:21]. "
+                    "Jordan will prepare technical scope by Thursday [01:22]."
+                ),
+            )
+        )
+
+
+def enrich_demo_meetings(db: Session, user_id: str) -> None:
+    """Backfill demo extras for existing accounts that already have starter meetings."""
+    rows = list(
+        db.scalars(
+            select(Meeting)
+            .where(
+                Meeting.owner_id == user_id,
+                Meeting.title == "Product roadmap sync",
+            )
+            .options(
+                selectinload(Meeting.notes),
+                selectinload(Meeting.questions),
+            )
+        ).all()
+    )
+    changed = False
+    for meeting in rows:
+        before_notes = len(meeting.notes or [])
+        before_q = len(meeting.questions or [])
+        _attach_demo_extras(meeting)
+        if len(meeting.notes or []) > before_notes or len(meeting.questions or []) > before_q:
+            changed = True
+    if changed:
+        db.commit()
+
+
 def provision_starter_meetings(db: Session, user_id: str) -> None:
     owned = list(db.scalars(select(Meeting).where(Meeting.owner_id == user_id)).all())
     if owned:
@@ -62,6 +114,7 @@ def provision_starter_meetings(db: Session, user_id: str) -> None:
                 db.delete(meeting)
             db.commit()
         else:
+            enrich_demo_meetings(db, user_id)
             return
     samples = [
         (
@@ -118,5 +171,6 @@ def provision_starter_meetings(db: Session, user_id: str) -> None:
         )
         meeting.segments = [TranscriptSegment(start_seconds=t, speaker=s, content=c) for t, s, c in segments]
         meeting.actions = [ActionItem(text=t, owner=o) for t, o in actions]
+        _attach_demo_extras(meeting)
         db.add(meeting)
     db.commit()
