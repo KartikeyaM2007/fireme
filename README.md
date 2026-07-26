@@ -2,6 +2,8 @@
 
 Scaler SDE Fullstack Assignment submission.
 
+**Author:** Kartikeya ([@KartikeyaM2007](https://github.com/KartikeyaM2007))
+
 | Deliverable | Link |
 | --- | --- |
 | **GitHub repository** | https://github.com/KartikeyaM2007/fireme |
@@ -9,6 +11,40 @@ Scaler SDE Fullstack Assignment submission.
 | **API** | https://fireme.onrender.com/api/health |
 
 Public repo layout: `frontend/` + `backend/` (as required).
+
+---
+
+## Screenshots (examples)
+
+### Landing
+
+Fireflies-inspired marketing page with signed-in workspace entry.
+
+![FireMe landing page](docs/screenshots/01-landing.png)
+
+### Meetings library + AI summary
+
+Browse meetings (search, filters, sort). Open a meeting for summary, topics, chapters, and action items.
+
+![Workspace library and meeting summary](docs/screenshots/03-meeting-summary.png)
+
+### Interactive transcript
+
+Speaker labels, timestamps, seek sync, in-transcript search, and highlight / comment / soundbite actions.
+
+![Interactive transcript with speakers and timestamps](docs/screenshots/04-transcript.png)
+
+### Ask FireMe
+
+LLM Q&A grounded in the meeting transcript, with a persisted chat thread.
+
+![Ask FireMe chat with cited answer](docs/screenshots/05-ask-fireme.png)
+
+### Dark workspace library
+
+Example of the full Fireflies-style library + detail layout (dark mode).
+
+![Dark mode meetings workspace](docs/screenshots/02-workspace-library.png)
 
 ---
 
@@ -103,9 +139,10 @@ Do not commit secrets.
         ▼                     ▼
    SQLite / Postgres     Local uploads
    (SQLAlchemy)          (UPLOAD_DIR)
+                         + media_blobs
 ```
 
-**Core UX flow:** Meetings library → open meeting → transcript + seek bar ↔ timestamps → AI summary / topics / chapters / actions → edit CRUD → optional Ask / export.
+**Core UX flow:** Meetings library → open meeting → transcript + seek bar ↔ timestamps → AI summary / topics / chapters / actions → edit CRUD → optional Ask / export / clips.
 
 Transcription and AI summaries can be seeded or LLM-generated (per assignment). Real STT is out of scope in the brief; this repo still supports Groq transcription when media is uploaded.
 
@@ -163,7 +200,27 @@ Custom schema (evaluated per assignment). Designed around meetings, interactive 
 | `answer` | Text | Model answer |
 | `created_at` | DateTime | |
 
-**Relationships:** one `Meeting` has many segments, actions, and questions.  
+### `segment_notes`
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | Integer PK | |
+| `meeting_id` | FK → `meetings.id` | Cascade delete |
+| `segment_id` | FK → `transcript_segments.id`, nullable | |
+| `kind` | String | `comment` / `highlight` / `soundbite` |
+| `body` | Text | Note text |
+| `start_seconds` / `end_seconds` | Integer | Clip range for soundbites |
+
+### `media_blobs`
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `key` | String PK | Storage key |
+| `content_type` | String, nullable | MIME |
+| `data` | LargeBinary | Durable upload bytes |
+| `created_at` | DateTime | |
+
+**Relationships:** one `Meeting` has many segments, actions, questions, and notes.  
 **Sample data:** each signed-in user is seeded with several meetings that include full transcripts, summaries, topics, chapters, and action items so the app is immediately usable.
 
 ---
@@ -176,9 +233,9 @@ Auth: `Authorization: Bearer <Clerk JWT>` on all routes except health.
 | Method | Endpoint | Purpose |
 | --- | --- | --- |
 | `GET` | `/api/health` | Health / DB / AI status |
-| `GET` | `/api/meetings` | List; `query`, `participant`, `date_from`, `date_to`, `sort` |
+| `GET` | `/api/meetings` | List; `query`, `participant`, `topic`, `date_from`, `date_to`, `sort` |
 | `POST` | `/api/meetings` | Create meeting (form) |
-| `GET` | `/api/meetings/{id}` | Detail with segments + actions |
+| `GET` | `/api/meetings/{id}` | Detail with segments, actions, notes, questions |
 | `PUT` | `/api/meetings/{id}` | Edit metadata (title, participants, …) |
 | `DELETE` | `/api/meetings/{id}` | Delete meeting |
 | `POST` | `/api/meetings/import` | Upload transcript or recording |
@@ -187,9 +244,10 @@ Auth: `Authorization: Bearer <Clerk JWT>` on all routes except health.
 | `PATCH`/`DELETE` | `/api/segments/{id}` | Edit / delete segment |
 | `POST` | `/api/meetings/{id}/actions` | Add action item |
 | `PATCH`/`DELETE` | `/api/actions/{id}` | Edit / complete / delete action |
+| `POST`/`DELETE` | `/api/meetings/{id}/notes`, `/api/notes/{id}` | Comments / highlights / soundbites |
 | `POST` | `/api/meetings/{id}/generate-insights` | AI summary, topics, chapters, actions |
-| `POST` | `/api/meetings/{id}/transcribe` | Transcribe uploaded media |
-| `POST` | `/api/meetings/{id}/ask` | Ask a question about this meeting |
+| `POST` | `/api/meetings/{id}/transcribe` | Transcribe uploaded media (background job) |
+| `POST` | `/api/meetings/{id}/ask` | Ask a question about this meeting (persisted thread) |
 | `GET` | `/api/meetings/{id}/media` | Stream recording |
 | `GET` | `/api/meetings/{id}/export` | Export `markdown` / `txt` / `pdf` |
 
@@ -223,8 +281,8 @@ Interactive OpenAPI docs: `/docs`.
 - Export PDF / Markdown / TXT  
 - Global search across meetings (including transcript text)  
 - Topics on meetings **with dedicated topic filter**  
-- LLM “Ask FireMe” about a meeting  
-- Comments / highlights / soundbites on transcript segments  
+- LLM “Ask FireMe” chat history about a meeting  
+- Comments / highlights / **playable soundbites** on transcript segments  
 - Dark mode toggle  
 - Durable media storage (Postgres `media_blobs`, optional Supabase Storage)  
 - Background transcription jobs (non-blocking HTTP)  
@@ -245,10 +303,17 @@ fireme/
     storage.py           Durable uploads (Postgres / Supabase)
     jobs.py              Background transcription
     models.py / services.py
+  docs/screenshots/      README demo images
   README.md
 ```
+
+## Author
+
+**Kartikeya** — Scaler SDE Fullstack Assignment · FireMe (Fireflies.ai clone)
+
+- GitHub: https://github.com/KartikeyaM2007  
+- Repo: https://github.com/KartikeyaM2007/fireme  
 
 ## Original work
 
 This repository is an original implementation for the Scaler assignment. It is not a fork of an existing Fireflies clone and is not affiliated with Fireflies.ai.
-
