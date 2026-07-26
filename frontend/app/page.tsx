@@ -102,6 +102,7 @@ function Workspace() {
   const [meetings, setMeetings] = useState<Meeting[]>([]),
     [selected, setSelected] = useState<Meeting | null>(null),
     [q, setQ] = useState(""),
+    [participant, setParticipant] = useState(""),
     [sort, setSort] = useState("recent"),
     [dateFrom, setDateFrom] = useState(""),
     [dateTo, setDateTo] = useState(""),
@@ -123,7 +124,8 @@ function Workspace() {
     [editingAction, setEditingAction] = useState<Action | null>(null),
     [tokenReady, setTokenReady] = useState(false),
     [busy, setBusy] = useState(false),
-    [notice, setNotice] = useState("");
+    [notice, setNotice] = useState(""),
+    [peopleOptions, setPeopleOptions] = useState<string[]>([]);
   const displayName =
     user?.fullName || user?.primaryEmailAddress?.emailAddress || "You";
   const initials = displayName
@@ -140,10 +142,18 @@ function Workspace() {
     if (!userId || !tokenReady) return;
     try {
       const params = new URLSearchParams({ query: q, sort });
+      if (participant) params.set("participant", participant);
       if (dateFrom) params.set("date_from", `${dateFrom}T00:00:00`);
       if (dateTo) params.set("date_to", `${dateTo}T23:59:59.999`);
       const data = await (await request(`/meetings?${params}`)).json();
       setMeetings(data);
+      setPeopleOptions((prev) => {
+        const names = new Set(prev);
+        data.forEach((m: Meeting) =>
+          m.participants.forEach((p) => names.add(p)),
+        );
+        return Array.from(names).sort();
+      });
       if (!selected && data[0]) open(data[0].id);
     } catch (e) {
       flash(e instanceof Error ? e.message : "Could not load meetings");
@@ -177,7 +187,7 @@ function Workspace() {
   useEffect(() => {
     const t = setTimeout(load, 200);
     return () => clearTimeout(t);
-  }, [q, sort, dateFrom, dateTo, userId, tokenReady]);
+  }, [q, participant, sort, dateFrom, dateTo, userId, tokenReady]);
   const refresh = async () => {
     if (selected) await open(selected.id);
     await load();
@@ -374,6 +384,19 @@ function Workspace() {
             value={dateTo}
             onChange={(e) => setDateTo(e.target.value)}
           />
+          <select
+            aria-label="Filter by participant"
+            className="filter-btn"
+            value={participant}
+            onChange={(e) => setParticipant(e.target.value)}
+          >
+            <option value="">All participants</option>
+            {peopleOptions.map((name) => (
+              <option key={name} value={name}>
+                {name}
+              </option>
+            ))}
+          </select>
           <select
             aria-label="Sort meetings"
             className="filter-btn"
@@ -1062,10 +1085,18 @@ function MediaPlayer({
       ? `${API.replace(/\/api$/, "")}${meeting.media_url}`
       : "",
     media = useRef<HTMLMediaElement>(null),
-    [duration, setDuration] = useState(meeting.duration_seconds),
-    [src, setSrc] = useState("");
+    [duration, setDuration] = useState(meeting.duration_seconds || 1),
+    [src, setSrc] = useState(""),
+    [playing, setPlaying] = useState(false);
   useEffect(() => {
-    if (!apiSrc) return;
+    setDuration(Math.max(meeting.duration_seconds || 1, 1));
+    setPlaying(false);
+  }, [meeting.id, meeting.duration_seconds]);
+  useEffect(() => {
+    if (!apiSrc) {
+      setSrc("");
+      return;
+    }
     let objectUrl = "",
       active = true;
     request(meeting.media_url || "")
@@ -1084,6 +1115,21 @@ function MediaPlayer({
     if (media.current && Math.abs(media.current.currentTime - seek) > 0.8)
       media.current.currentTime = seek;
   }, [seek]);
+  const seekRef = useRef(seek);
+  seekRef.current = seek;
+  useEffect(() => {
+    if (src || !playing) return;
+    const id = window.setInterval(() => {
+      const next = seekRef.current + 1;
+      if (next >= duration) {
+        setPlaying(false);
+        setSeek(duration);
+      } else {
+        setSeek(next);
+      }
+    }, 1000);
+    return () => window.clearInterval(id);
+  }, [playing, src, duration, setSeek]);
   return (
     <div className="player">
       {src ? (
@@ -1098,7 +1144,8 @@ function MediaPlayer({
               onLoadedMetadata={(e) =>
                 setDuration(
                   Math.ceil(e.currentTarget.duration) ||
-                    meeting.duration_seconds,
+                    meeting.duration_seconds ||
+                    1,
                 )
               }
               onTimeUpdate={(e) =>
@@ -1115,7 +1162,8 @@ function MediaPlayer({
               onLoadedMetadata={(e) =>
                 setDuration(
                   Math.ceil(e.currentTarget.duration) ||
-                    meeting.duration_seconds,
+                    meeting.duration_seconds ||
+                    1,
                 )
               }
               onTimeUpdate={(e) =>
@@ -1123,28 +1171,40 @@ function MediaPlayer({
               }
             />
           )}
-          <div className="player-controls">
-            <span>{fmt(seek)}</span>
-            <input
-              aria-label="Seek recording"
-              type="range"
-              min="0"
-              max={Math.max(duration, 1)}
-              value={Math.min(seek, duration || 0)}
-              onChange={(e) => setSeek(+e.target.value)}
-            />
-            <span>{fmt(duration)}</span>
-          </div>
         </>
       ) : (
         <div className="no-media">
           <FileAudio size={24} />
           <div>
-            <strong>No recording attached</strong>
-            <span>Import an audio or video recording to enable playback.</span>
+            <strong>Placeholder player</strong>
+            <span>
+              No recording attached. Use the seek bar or click a transcript
+              timestamp — active lines stay in sync.
+            </span>
           </div>
+          <button
+            className="new-btn"
+            onClick={() => setPlaying((value) => !value)}
+          >
+            {playing ? "Pause" : "Play"}
+          </button>
         </div>
       )}
+      <div className="player-controls">
+        <span>{fmt(seek)}</span>
+        <input
+          aria-label="Seek recording"
+          type="range"
+          min="0"
+          max={Math.max(duration, 1)}
+          value={Math.min(seek, duration || 0)}
+          onChange={(e) => {
+            setSeek(+e.target.value);
+            setPlaying(false);
+          }}
+        />
+        <span>{fmt(duration)}</span>
+      </div>
     </div>
   );
 }

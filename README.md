@@ -5,15 +5,17 @@ FireMe is a full-stack, Fireflies-inspired meeting intelligence app. It pairs an
 ## What works
 
 - Scroll-animated product landing page at `/`, with a working **Open workspace** handoff
-- Persistent SQLite meeting library: create, edit, delete, search, sort, and filter by start date
+- Persistent PostgreSQL (or SQLite) meeting library: create, edit, delete, search, sort, and filter by date or participant
 - Transcript import for `.txt`, `.vtt`, `.srt`, and `.json`
 - Recording import for `.mp3`, `.mp4`, `.m4a`, `.wav`, `.webm`, `.ogg`, `.mpeg`, and `.flac`
-- Native audio/video playback, timestamp seeking, transcript search, editable transcript lines, and pasted-transcript import
+- Native audio/video playback **or** a placeholder seek bar that stays synced with transcript timestamps
+- Transcript search with highlighted matches, editable lines, and pasted-transcript import
 - AI summaries, topics, chapters, action extraction, and transcript-grounded Ask FireMe answers
 - Groq-powered transcription with `whisper-large-v3-turbo`
 - Markdown, text, and PDF exports
 - Global search across titles, participants, topics, summaries, and transcript text
-- Clerk sign-in/sign-up controls, signed-in profile menu, and a workspace handoff
+- Clerk sign-in/sign-up controls, signed-in profile menu, Settings placeholder, and workspace handoff
+- Per-user seeded starter meetings with full transcripts, summaries, topics, chapters, and actions
 
 ## AI providers
 
@@ -96,26 +98,47 @@ Set `CLERK_ISSUER` and `CLERK_JWKS_URL` in `backend/.env`. They are included for
 ## Architecture
 
 ```text
-Next.js frontend (127.0.0.1:3000)
-        │ REST
+Next.js frontend (Vercel / localhost:3000)
+        │ REST + Clerk Bearer token
         ▼
-FastAPI API (127.0.0.1:8000)
-  ├─ SQLite or PostgreSQL: meetings, transcript segments, actions, questions
-  ├─ Local upload storage
+FastAPI API (Render / localhost:8000)
+  ├─ PostgreSQL (Supabase) or SQLite: meetings, segments, actions, questions
+  ├─ Local upload storage (`UPLOAD_DIR`)
   └─ Groq or OpenAI-compatible provider calls
 ```
 
 The frontend never receives AI provider secrets.
+
+## Database schema
+
+```text
+meetings
+  id, owner_id, title, occurred_at, duration_seconds,
+  participants (JSON text), summary, topics (JSON text), chapters (JSON text),
+  media_path, media_type, processing_status, created_at
+
+transcript_segments
+  id, meeting_id → meetings.id, speaker, start_seconds, content
+
+action_items
+  id, meeting_id → meetings.id, text, owner, completed
+
+meeting_questions
+  id, meeting_id → meetings.id, question, answer, created_at
+```
+
+Relationships: one meeting has many segments, actions, and Ask FireMe question rows. All product rows are scoped by `meetings.owner_id` (Clerk `sub`).
 
 ## API overview
 
 | Method | Endpoint | Purpose |
 | --- | --- | --- |
 | `GET` | `/api/health` | Health, selected provider, and AI configuration status |
-| `GET` | `/api/meetings` | Search, sort, and list meetings |
+| `GET` | `/api/meetings` | Search, participant/date filter, sort, and list meetings |
 | `POST` | `/api/meetings` | Create a manual meeting |
 | `GET/PUT/DELETE` | `/api/meetings/{id}` | Read, edit, or delete a meeting |
 | `POST` | `/api/meetings/import` | Import transcript or media files |
+| `POST` | `/api/meetings/{id}/paste-transcript` | Paste transcript text into a meeting |
 | `POST` | `/api/meetings/{id}/transcribe` | Transcribe an uploaded recording |
 | `POST` | `/api/meetings/{id}/generate-insights` | Generate summary, topics, chapters, and actions |
 | `POST` | `/api/meetings/{id}/ask` | Answer a question from the meeting transcript |
@@ -123,17 +146,23 @@ The frontend never receives AI provider secrets.
 | `PATCH/DELETE` | `/api/segments/{id}` | Update or delete a segment |
 | `POST` | `/api/meetings/{id}/actions` | Add an action item |
 | `PATCH/DELETE` | `/api/actions/{id}` | Update or delete an action item |
-| `GET` | `/api/meetings/{id}/export` | Download Markdown or text export |
+| `GET` | `/api/meetings/{id}/media` | Stream an uploaded recording |
+| `GET` | `/api/meetings/{id}/export` | Download Markdown, text, or PDF export |
+
+## Assumptions
+
+- Assignment focus is the post-meeting Fireflies workflow; live meeting bots and calendar/CRM integrations are Settings placeholders.
+- Real speech-to-text is optional in the brief; this repo implements Groq transcription when a recording is uploaded.
+- Seeded starter meetings are provisioned per signed-in user so the hosted demo is immediately usable with `SEED_DEMO_DATA=false`.
+- Audio/video may be missing on starter rows; the placeholder seek bar still supports transcript sync for evaluation.
 
 ## Verification status
 
-- Frontend production build passed before the local dev server was started.
-- Python syntax compilation passed.
-- API health reports Groq as configured.
-- Live Groq summary generation and Ask FireMe requests succeeded against seeded data.
-- Browser-origin API access from the local frontend was verified with the expected CORS header.
-- Clerk controls were verified in the browser at `http://localhost:3000`; `npm run build` passed after the Clerk integration.
+- Frontend production build / TypeScript checks and Vitest workspace coverage.
+- Backend pytest coverage for auth isolation, global transcript search, and PDF export.
+- Hosted demo: frontend on Vercel, API on Render, Supabase PostgreSQL, Clerk auth.
+- Browser CORS verified for `https://fireme-chi.vercel.app` → `https://fireme.onrender.com`.
 
 ## Production boundaries
 
-This is an assignment implementation with Clerk-authenticated, user-scoped API data and SQLite/PostgreSQL support. A public multi-user deployment still needs team/workspace sharing, object storage, background jobs for long media, upload limits/scanning, rate limiting, monitoring, and provider retry handling. See [whatisleft.md](whatisleft.md) for the honest remaining-work ledger.
+This is an assignment implementation with Clerk-authenticated, user-scoped API data and SQLite/PostgreSQL support. A public multi-user deployment still needs team/workspace sharing, object storage, background jobs for long media, upload limits/scanning, rate limiting, monitoring, and provider retry handling.

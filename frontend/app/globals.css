@@ -871,11 +871,15 @@
 }
 .no-media {
   min-height: 104px;
-  color: #ddd9ed;
+  color: #5b5670;
   display: flex;
   justify-content: center;
   align-items: center;
   gap: 12px;
+  padding: 12px 16px;
+  background: #faf9ff;
+  border: 1px dashed #d9d4e8;
+  border-radius: 10px;
 }
 .no-media strong,
 .no-media span {
@@ -883,8 +887,12 @@
 }
 .no-media span {
   font-size: 11px;
-  color: #aaa4bf;
+  color: #8a849c;
   margin-top: 3px;
+}
+.no-media .new-btn {
+  margin-left: auto;
+  flex: none;
 }
 .summary-layout {
   display: grid;

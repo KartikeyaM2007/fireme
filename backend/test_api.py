@@ -62,6 +62,9 @@ def test_global_search_and_pdf_export():
         hits = client.get("/api/meetings", params={"query": "analytics event pipeline"})
         assert hits.status_code == 200
         assert any(m["id"] == meeting_id for m in hits.json())
+        by_person = client.get("/api/meetings", params={"participant": "Ava"})
+        assert by_person.status_code == 200
+        assert any(m["id"] == meeting_id for m in by_person.json())
         pdf = client.get(f"/api/meetings/{meeting_id}/export", params={"format": "pdf"})
         assert pdf.status_code == 200
         assert pdf.headers["content-type"].startswith("application/pdf")

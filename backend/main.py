@@ -164,13 +164,14 @@ def health(response:Response):
         response.status_code=503;database="error"
     return {"ok":database=="ok","database":database,"ai_configured":bool(os.getenv("GROQ_API_KEY") or os.getenv("OPENAI_API_KEY")),"ai_provider":os.getenv("AI_PROVIDER", "groq" if os.getenv("GROQ_API_KEY") else "openai"),"storage":"local"}
 @app.get("/api/meetings")
-def list_meetings(query:str="",date_from:Optional[datetime]=None,date_to:Optional[datetime]=None,sort:str="recent",user_id:str=Depends(current_user),db:Session=Depends(get_db)):
+def list_meetings(query:str="",participant:str="",date_from:Optional[datetime]=None,date_to:Optional[datetime]=None,sort:str="recent",user_id:str=Depends(current_user),db:Session=Depends(get_db)):
     provision_starter_meetings(db,user_id)
     stmt=select(Meeting).where(Meeting.owner_id==user_id)
     if query:
         like=f"%{query}%"
         transcript_hits=select(TranscriptSegment.meeting_id).where(TranscriptSegment.content.ilike(like))
         stmt=stmt.where(or_(Meeting.title.ilike(like),Meeting.participants.ilike(like),Meeting.topics.ilike(like),Meeting.summary.ilike(like),Meeting.id.in_(transcript_hits)))
+    if participant: stmt=stmt.where(Meeting.participants.ilike(f"%{participant}%"))
     if date_from: stmt=stmt.where(Meeting.occurred_at>=date_from)
     if date_to: stmt=stmt.where(Meeting.occurred_at<=date_to)
     stmt=stmt.order_by(Meeting.occurred_at.asc() if sort=="oldest" else Meeting.occurred_at.desc())
