@@ -21,7 +21,8 @@ Public repo layout: `frontend/` + `backend/` (as required).
 3. Click **Open your workspace** (or **Get Started**).
 4. Prefer **Product roadmap sync** (pinned / demo extras) or **WIN 20260723 Pro** (real video).
 5. Try **Summary → Talk time → Transcript search → Ask FireMe → Clips → Export**.
-6. Optional: open the **Live** sidebar tab → **Browser live capture** (mic) or review Zoom/Meet/Teams Coming soon cards.
+6. Optional: open the **Live** sidebar tab → **Browser live capture** (mic; pick Speaker 1/2/3 while talking) or review Zoom/Meet/Teams + calendar Coming soon cards.
+7. Sidebar **fireme.ai** logo returns to the landing page anytime.
 
 ### Render free-tier cold start (important for reviewers)
 
@@ -363,12 +364,12 @@ Interactive OpenAPI docs: `/docs`.
 
 ## Assumptions made
 
-1. **Scope:** Focus is the Fireflies **post-meeting** workspace (library + transcript + summary), not production Zoom/Meet/Teams bots. A **Live** hub offers Coming-soon platform cards plus **browser microphone capture** (Web Speech API) that saves into the same meeting model.
-2. **STT:** Assignment marks real speech-to-text as out of scope / placeholder-OK. Seeded transcripts and file upload satisfy the core path; Groq transcription (+ ffmpeg compress under the 25MB limit) is an optional enhancement when media is present.
-3. **AI summaries:** May be seeded or LLM-generated from transcript text (both supported).
+1. **Scope:** Focus is the Fireflies **post-meeting** workspace (library + transcript + summary), not production Zoom/Meet/Teams bots. A **Live** hub offers Coming-soon platform cards, a calendar mock, plus **browser microphone capture** (Web Speech API) that saves into the same meeting model.
+2. **STT / speakers:** Seeded transcripts and file upload satisfy the core path. Optional media STT uses Groq Whisper (`verbose_json`) — **not** real speaker diarization; labels are normalized to Speaker N. OpenAI path can use `gpt-4o-transcribe-diarize` when `AI_PROVIDER=openai`. Live capture uses a **manual Speaker 1/2/3 picker**, not auto diarization.
+3. **AI summaries:** May be seeded or LLM-generated from transcript text (both supported). After media transcription finishes, a toast prompts **Generate** for the AI summary.
 4. **Auth:** Brief allows assuming a default logged-in user. This submission uses Clerk so the hosted multi-user demo stays private per account.
 5. **Media player:** Real `<video>` / `<audio>` when a file exists; otherwise a seek bar stays synced with transcript timestamps.
-6. **Placeholders:** Live bot, calendar/CRM integrations, and team sharing are exposed as **Settings → Coming soon**.
+6. **Placeholders:** Zoom/Meet/Teams bots and calendar auto-join are **Coming soon** in the Live hub; Settings also exposes calendar/CRM / sharing placeholders.
 7. **Database:** Assignment asks for SQLite schema design; SQLite works locally. Production uses the same schema on PostgreSQL through `DATABASE_URL`.
 8. **JSON columns:** `participants`, `topics`, and `chapters` are stored as JSON text for portable schema across SQLite and Postgres.
 9. **Cold starts:** Render free-tier dynos sleep when idle. FireMe shows an animated **ColdStartNote** on landing + workspace entry, warms `/api/health`, and uses a skeleton list so a slow wake does not look like an empty product.
@@ -397,7 +398,8 @@ Interactive OpenAPI docs: `/docs`.
 - Interactive canvas starfield + transparent scrolled header on the marketing page  
 - Animated **Render cold-start note** (`ColdStartNote`) on site entry + library skeleton while waking  
 - Talk-time bars, pin/share, timestamp deep links, Speaker N labels after STT  
-- **Live hub** — Zoom/Meet/Teams + calendar Coming soon, plus **browser mic live capture** that saves a meeting  
+- **Live hub** — browser mic capture; Zoom/Meet/Teams + calendar mock Coming soon; manual **Speaker 1/2/3** picker on live lines  
+- Sidebar logo → homepage; post-transcribe toast with **Generate** action; full-width Transcript/Ask + contrast polish on summary/chapters/segments  
 
 ---
 
