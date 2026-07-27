@@ -8,6 +8,7 @@ Scaler SDE Fullstack Assignment submission.
 | --- | --- |
 | **GitHub repository** | https://github.com/KartikeyaM2007/fireme |
 | **Hosted demo** | https://fireme-chi.vercel.app |
+| **See Video Demo** | https://drive.google.com/file/d/1busXNQ3RVsBFljHoHikZR1efAFa1ypoD/view?usp=sharing |
 | **API health** | https://fireme.onrender.com/api/health |
 
 Public repo layout: `frontend/` + `backend/` (as required).
